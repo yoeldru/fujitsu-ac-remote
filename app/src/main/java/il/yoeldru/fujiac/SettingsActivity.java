@@ -75,7 +75,14 @@ public class SettingsActivity extends Activity {
         Button add = Ui.soft(this, "＋ מזגן עם שלט (IR)");
         add.setOnClickListener(v -> { store.addAc(); render(); msg("נוסף מזגן חדש – הגדר לו את השלט החכם שלו"); });
         Button addWifi = Ui.soft(this, "＋ מזגן Wi-Fi (טורנדו)");
-        addWifi.setOnClickListener(v -> addWifiAcs());
+        addWifi.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("הוספת מזגן Wi-Fi")
+                .setItems(new String[]{"🆕 צימוד מזגן (חיבור ראשון / אחרי ניתוק)", "🔍 חפש מזגן שכבר מחובר לרשת"}, (d, w) -> {
+                    if (w == 0) {
+                        android.content.Intent i = new android.content.Intent(this, SetupDeviceActivity.class);
+                        i.putExtra("wifiAc", true);
+                        startActivity(i);
+                    } else addWifiAcs();
+                }).show());
         Ui.addWeighted(addRow, add, 3);
         Ui.addWeighted(addRow, addWifi, 3);
         acs.addView(addRow);

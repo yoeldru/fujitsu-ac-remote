@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 15:04 (שעון ישראל)
+// נכתב: 2026-11-05 15:04 (שעון ישראל) · עודכן: 2026-11-05 23:42 - גם צימוד מזגן Wi-Fi (טורנדו/AUX)
 // אשף "הגדרת שלט חדש": מחבר RM4 שעבר ריסט לרשת הביתית ישירות מהאפליקציה – בלי אפליקציית Broadlink ובלי ענן.
 // שלבים: ריסט למצב AP ← פרטי הרשת הביתית ← התחברות לרשת של השלט ושליחה ← חיפוש ושיוך למזגן.
 package il.yoeldru.fujiac;
@@ -41,6 +41,9 @@ public class SetupDeviceActivity extends Activity {
     private ConnectivityManager.NetworkCallback apCallback;
     private ConnectivityManager cm;
     private boolean askedPermission = false;
+    /** מצב צימוד מזגן Wi-Fi (טורנדו) במקום שלט RM4. */
+    private boolean wifiAc;
+    private String thing() { return wifiAc ? "המזגן" : "השלט"; }
 
     @Override
     protected void onCreate(Bundle b) {
@@ -48,19 +51,27 @@ public class SetupDeviceActivity extends Activity {
         store = new Store(this);
         cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         AcConfig ac = store.current();
+        wifiAc = getIntent() != null && getIntent().getBooleanExtra("wifiAc", false);
         LinearLayout col = Ui.screen(this);
-        col.addView(Ui.text(this, "הגדרת שלט חדש", 24, Ui.TEXT, true));
+        col.addView(Ui.text(this, wifiAc ? "צימוד מזגן Wi-Fi (טורנדו)" : "הגדרת שלט חדש", 24, Ui.TEXT, true));
         Ui.spacer(col, 4);
-        col.addView(Ui.text(this, "יחובר ישירות לרשת הביתית וישויך ל" + ac.name + " – בלי אפליקציית Broadlink.",
+        col.addView(Ui.text(this, wifiAc
+                        ? "המזגן יחובר ישירות לרשת הביתית ויתווסף לאפליקציה – בלי אפליקציית טורנדו."
+                        : "יחובר ישירות לרשת הביתית וישויך ל" + ac.name + " – בלי אפליקציית Broadlink.",
                 13, Ui.MUTED, false));
         Ui.spacer(col, 12);
 
         // שלב 1
         LinearLayout s1 = Ui.card(this);
-        s1.addView(Ui.text(this, "1 · ריסט למצב הגדרה", 17, Ui.TEXT, true));
+        s1.addView(Ui.text(this, wifiAc ? "1 · העברת המזגן למצב צימוד" : "1 · ריסט למצב הגדרה", 17, Ui.TEXT, true));
         Ui.spacer(s1, 6);
-        s1.addView(Ui.text(this,
-                "• החזק את כפתור הריסט (חור קטן) עם סיכה עד שהנורית מהבהבת מהר, ושחרר.\n"
+        s1.addView(Ui.text(this, wifiAc
+                ? "• כשהמזגן דולק, כוון את השלט שלו אליו ולחץ 8 פעמים ברצף ומהר על כפתור Health (בחלק מהדגמים: Display/LED) – "
+                        + "המזגן יצפצף.\n"
+                        + "• בטלפון, בהגדרות ה-Wi-Fi, אמורה להופיע רשת חדשה של המזגן (למשל BroadlinkProv או AUX…). "
+                        + "אם אחרי דקה היא לא מופיעה – לחץ שוב 8 פעמים (זה מעביר בין שני מצבי הצימוד).\n"
+                        + "• אם המזגן כבר מחובר לאפליקציית טורנדו, הצימוד מחדש ינתק אותו ממנה."
+                : "• החזק את כפתור הריסט (חור קטן) עם סיכה עד שהנורית מהבהבת מהר, ושחרר.\n"
                         + "• החזק שוב עד שהנורית מהבהבת לאט – השלט משדר עכשיו רשת Wi-Fi משלו (בד\"כ BroadlinkProv).",
                 14.5f, Ui.TEXT, false));
         col.addView(s1);
@@ -92,14 +103,14 @@ public class SetupDeviceActivity extends Activity {
 
         // שלב 3
         LinearLayout s3 = Ui.card(this);
-        s3.addView(Ui.text(this, "3 · חיבור השלט", 17, Ui.TEXT, true));
+        s3.addView(Ui.text(this, "3 · חיבור " + thing(), 17, Ui.TEXT, true));
         Ui.spacer(s3, 6);
-        Button go = Ui.primary(this, "📡 חבר את השלט לרשת הביתית");
+        Button go = Ui.primary(this, "📡 חבר את " + thing() + " לרשת הביתית");
         go.setOnClickListener(v -> start());
         s3.addView(go, new LinearLayout.LayoutParams(-1, -2));
         Ui.spacer(s3, 8);
         s3.addView(Ui.text(this,
-                "אנדרואיד יציג חלון עם הרשת של השלט – בחר בה ואשר. אם לא הופיע חלון: חבר ידנית את הטלפון לרשת של השלט "
+                "אנדרואיד יציג חלון עם הרשת של " + thing() + " – בחר בה ואשר. אם לא הופיע חלון: חבר ידנית את הטלפון לרשת של " + thing() + " "
                         + "בהגדרות ה-Wi-Fi (אם נשאל – \"השאר מחובר\"), חזור לכאן ולחץ:",
                 12.5f, Ui.MUTED, false));
         Ui.spacer(s3, 6);
@@ -117,7 +128,7 @@ public class SetupDeviceActivity extends Activity {
         msg.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 6));
         col.addView(msg);
 
-        Button find = Ui.soft(this, "🔍 חפש את השלט ברשת הביתית ושייך");
+        Button find = Ui.soft(this, "🔍 חפש את " + thing() + " ברשת הביתית" + (wifiAc ? " והוסף" : " ושייך"));
         find.setOnClickListener(v -> findAndAssign(1));
         col.addView(find, new LinearLayout.LayoutParams(-1, -2));
     }
@@ -171,7 +182,8 @@ public class SetupDeviceActivity extends Activity {
         releaseAp();
         msg.setText("מחפש את הרשת של השלט… בחר בה בחלון שייפתח");
         WifiNetworkSpecifier spec = new WifiNetworkSpecifier.Builder()
-                .setSsidPattern(new PatternMatcher(".*[Bb][Rr][Oo][Aa][Dd].*", PatternMatcher.PATTERN_ADVANCED_GLOB))
+                .setSsidPattern(new PatternMatcher(wifiAc ? ".*([Bb][Rr][Oo][Aa][Dd]|[Aa][Uu][Xx]|[Tt][Oo][Rr][Nn]|[Aa][Cc]_|[Pp][Rr][Oo][Vv]).*"
+                        : ".*[Bb][Rr][Oo][Aa][Dd].*", PatternMatcher.PATTERN_ADVANCED_GLOB))
                 .build();
         NetworkRequest req = new NetworkRequest.Builder()
                 .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
@@ -237,13 +249,14 @@ public class SetupDeviceActivity extends Activity {
 
     /** מחפש את השלט ברשת הביתית (כמה ניסיונות) ומשייך אותו למזגן הנוכחי. */
     private void findAndAssign(int attempts) {
-        msg.setText("מחפש את השלט ברשת הביתית…");
+        msg.setText("מחפש את " + thing() + " ברשת הביתית…");
         Context app = getApplicationContext();
         Remote.NET.execute(() -> {
             List<BroadlinkDevice> found = new ArrayList<>();
             for (int i = 0; i < attempts && found.isEmpty(); i++) {
                 try {
-                    found.addAll(BroadlinkDevice.discover(InetAddress.getByName("255.255.255.255"), 4000));
+                    for (BroadlinkDevice d : BroadlinkDevice.discover(InetAddress.getByName("255.255.255.255"), 4000))
+                        if (wifiAc || d.devtype != il.yoeldru.fujiac.core.AuxAc.DEVTYPE) found.add(d);
                 } catch (Exception ignored) {}
                 if (found.isEmpty()) try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
             }
@@ -254,7 +267,7 @@ public class SetupDeviceActivity extends Activity {
     private void onFound(List<BroadlinkDevice> found) {
         if (isFinishing()) return;
         if (found.isEmpty()) {
-            msg.setText("✗ השלט לא נמצא עדיין. ודא שהטלפון חזר לרשת הביתית ולחץ \"חפש את השלט\". "
+            msg.setText("✗ " + thing() + " לא נמצא עדיין. ודא שהטלפון חזר לרשת הביתית ולחץ \"חפש\". "
                     + "אם הנורית עדיין מהבהבת – ייתכן ששם הרשת או הסיסמה שגויים, או שהרשת אינה 2.4GHz.");
             return;
         }
@@ -265,6 +278,24 @@ public class SetupDeviceActivity extends Activity {
             for (AcConfig a : store.acs()) if (a.mac.equals(FujitsuIr.hex(d.macRaw))) used = true;
             if (!used) free.add(d);
         }
+        if (wifiAc) {
+            if (free.isEmpty()) { msg.setText("✓ המזגן כבר מחובר ונמצא באפליקציה."); return; }
+            List<BroadlinkDevice> acs = new ArrayList<>(), other = new ArrayList<>();
+            for (BroadlinkDevice d : free) (d.devtype == il.yoeldru.fujiac.core.AuxAc.DEVTYPE ? acs : other).add(d);
+            if (!acs.isEmpty()) { addWifiAcs(acs); return; }
+            // מכשיר חדש מסוג לא מוכר - שואלים אם זה המזגן
+            String[] names = new String[other.size()];
+            for (int i = 0; i < names.length; i++)
+                names[i] = (other.get(i).name.isEmpty() ? "מכשיר" : other.get(i).name) + " · " + other.get(i).host
+                        + String.format(" · סוג 0x%04X", other.get(i).devtype);
+            new AlertDialog.Builder(this).setTitle("נמצא מכשיר חדש – זה המזגן?")
+                    .setItems(names, (d, w) -> {
+                        List<BroadlinkDevice> one = new ArrayList<>();
+                        one.add(other.get(w));
+                        addWifiAcs(one);
+                    }).setNegativeButton("לא", null).show();
+            return;
+        }
         List<BroadlinkDevice> options = free.isEmpty() ? found : free;
         if (options.size() == 1) { assign(options.get(0)); return; }
         String[] names = new String[options.size()];
@@ -273,6 +304,40 @@ public class SetupDeviceActivity extends Activity {
                     + " · " + options.get(i).macString();
         new AlertDialog.Builder(this).setTitle("איזה שלט שייך ל" + store.current().name + "?")
                 .setItems(names, (d, w) -> assign(options.get(w))).show();
+    }
+
+    /** מוסיף מזגני Wi-Fi חדשים שנמצאו אחרי הצימוד. */
+    private void addWifiAcs(List<BroadlinkDevice> devs) {
+        msg.setText("מתחבר למזגן…");
+        Remote.NET.execute(() -> {
+            StringBuilder report = new StringBuilder();
+            int last = 0;
+            for (BroadlinkDevice d : devs) {
+                AcConfig a = new AcConfig();
+                a.id = store.nextId();
+                a.kind = "aux";
+                a.name = "מזגן " + (store.acs().size() + 1);
+                a.setDevice(d);
+                try {
+                    d.auth();
+                    il.yoeldru.fujiac.core.AuxAc.Status st = il.yoeldru.fujiac.core.AuxAc.read(d);
+                    a.state = Remote.toAppState(st, a.state);
+                    report.append("✓ ").append(a.name).append(" (").append(d.host).append(") מגיב\n");
+                } catch (Exception e) {
+                    report.append("⚠ ").append(a.name).append(" נוסף אבל לא הגיב: ").append(e.getMessage()).append('\n');
+                }
+                store.saveAc(a);
+                last = a.id;
+            }
+            final int fLast = last;
+            main.post(() -> {
+                store.setCurrent(fLast);
+                msg.setText(report.toString().trim());
+                new AlertDialog.Builder(this).setTitle("✓ המזגן נוסף")
+                        .setMessage(report.toString().trim() + "\n\nתן לו שם בהגדרות (למשל \"חדר הורים\"), ומומלץ לקבע לו IP בנתב.")
+                        .setPositiveButton("סיום", (x, y) -> finish()).show();
+            });
+        });
     }
 
     private void assign(BroadlinkDevice d) {
