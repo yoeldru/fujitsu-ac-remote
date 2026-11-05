@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 10:30 - תזמון לכל מזגן
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 12:42 - תזמון למזגן או לקבוצה
 // מופעל בזמן התזמון: שולח את הפקודה למזגן וקובע את המועד הבא.
 // גם מופעל אחרי הפעלה מחדש של הטלפון כדי לשחזר את התזמונים.
 package il.yoeldru.fujiac;
@@ -27,22 +27,30 @@ public class ScheduleReceiver extends BroadcastReceiver {
             if (a.optJSONObject(i).optInt("id") == id) s = a.optJSONObject(i);
         if (s == null || !s.optBoolean("enabled", true)) return;
 
-        AcConfig ac = store.ac(s.optInt("acId"));
-        if (ac == null) ac = store.current();
-        final AcConfig fAc = ac;
-        AcState st = ac.state;
-        if (s.optString("action").equals("off")) {
-            st.power = false;
-        } else {
-            st.power = true;
-            st.temp = s.optInt("temp", st.temp);
-            st.mode = s.optInt("mode", st.mode);
-            st.fan = s.optInt("fan", st.fan);
-            st.swing = s.optInt("swing", st.swing);
+        // יעד: קבוצה (כל החברים) או מזגן בודד
+        java.util.List<AcConfig> targets = new java.util.ArrayList<>();
+        if (s.optInt("groupId") != 0) targets.addAll(store.members(store.group(s.optInt("groupId"))));
+        if (targets.isEmpty()) {
+            AcConfig one = store.ac(s.optInt("acId"));
+            if (one == null) one = store.current();
+            targets.add(one);
         }
-        store.saveState(ac.id, st);
-        // בתזמון תמיד שולחים "הדלקה" מפורשת - כך המזגן יידלק גם אם הופעל/כובה בשלט הרגיל
-        byte[] ir = Remote.irForState(ac, st, st.power);
+        java.util.List<byte[]> codes = new java.util.ArrayList<>();
+        for (AcConfig ac : targets) {
+            AcState st = ac.state;
+            if (s.optString("action").equals("off")) {
+                st.power = false;
+            } else {
+                st.power = true;
+                st.temp = s.optInt("temp", st.temp);
+                st.mode = s.optInt("mode", st.mode);
+                st.fan = s.optInt("fan", st.fan);
+                st.swing = s.optInt("swing", st.swing);
+            }
+            store.saveState(ac.id, st);
+            // בתזמון תמיד שולחים "הדלקה" מפורשת - כך המזגן יידלק גם אם הופעל/כובה בשלט הרגיל
+            codes.add(Remote.irForState(ac, st, st.power));
+        }
 
         // תזמון חד-פעמי מתבטל; קבוע נקבע מחדש
         try {
@@ -53,12 +61,14 @@ public class ScheduleReceiver extends BroadcastReceiver {
 
         PendingResult pr = goAsync();
         new Thread(() -> {
-            for (int attempt = 0; attempt < 3; attempt++) {
-                try {
-                    Remote.sendBlocking(fAc, ir);
-                    break;
-                } catch (Exception e) {
-                    try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
+            for (int k = 0; k < targets.size(); k++) {
+                for (int attempt = 0; attempt < 3; attempt++) {
+                    try {
+                        Remote.sendBlocking(targets.get(k), codes.get(k));
+                        break;
+                    } catch (Exception e) {
+                        try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
+                    }
                 }
             }
             pr.finish();

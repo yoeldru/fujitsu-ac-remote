@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 12:06 - בחירה בין מזגנים, התראת עדכון
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 12:42 - קבוצות מזגנים
 // המסך הראשי: הדלקה/כיבוי, טמפרטורה, מצב, מאוורר, תריסים, מועדפים.
 package il.yoeldru.fujiac;
 
@@ -19,11 +19,22 @@ import android.widget.TextView;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 import il.yoeldru.fujiac.core.FujitsuIr;
 
 public class MainActivity extends Activity {
     private Store store;
     private AcConfig ac;
+    /** המזגנים שהמסך שולט בהם עכשיו: מזגן אחד, או כל חברי הקבוצה. */
+    private List<AcConfig> targets;
+    private JSONObject group;
+    /** מזגנים בקבוצה שהיו כבויים - בשליחה הבאה יקבלו פקודת הדלקה. */
+    private final Set<Integer> needOn = new HashSet<>();
     private AcState st;
     private LinearLayout acRow, updateCard;
     private Button gear;
@@ -50,7 +61,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         load();
-        titleView.setText(ac.name);
+        titleView.setText(title());
         renderAcs();
         refresh();
         renderFavorites();
@@ -67,7 +78,7 @@ public class MainActivity extends Activity {
 
         // כותרת
         LinearLayout head = Ui.row(this);
-        titleView = Ui.text(this, ac.name, 24, Ui.TEXT, true);
+        titleView = Ui.text(this, title(), 24, Ui.TEXT, true);
         head.addView(titleView, new LinearLayout.LayoutParams(0, -2, 1f));
         gear = Ui.soft(this, "⚙️ הגדרות");
         gear.setTextSize(13);
@@ -89,7 +100,7 @@ public class MainActivity extends Activity {
         updateCard.setVisibility(android.view.View.GONE);
         col.addView(updateCard);
 
-        // בחירת מזגן (מוצג כשיש יותר ממזגן אחד)
+        // בחירת מזגן או קבוצה (מוצג כשיש יותר ממזגן אחד)
         acScroll = new HorizontalScrollView(this);
         acScroll.setHorizontalScrollBarEnabled(false);
         acRow = Ui.row(this);
@@ -204,36 +215,114 @@ public class MainActivity extends Activity {
     }
 
     private void load() {
-        ac = store.current();
-        st = ac.state;
+        int gid = store.currentGroup();
+        group = gid != 0 ? store.group(gid) : null;
+        List<AcConfig> m = store.members(group);
+        if (group != null && !m.isEmpty()) {
+            targets = m;
+            ac = m.get(0);
+            st = ac.state.copy();
+            boolean anyOn = false;
+            for (AcConfig t : m) anyOn |= t.state.power;
+            st.power = anyOn;
+        } else {
+            group = null;
+            ac = store.current();
+            targets = Collections.singletonList(ac);
+            st = ac.state.copy();
+        }
+    }
+
+    private String title() {
+        return group != null ? "👥 " + group.optString("name") : ac.name;
     }
 
     private void renderAcs() {
         acRow.removeAllViews();
-        java.util.List<AcConfig> all = store.acs();
+        List<AcConfig> all = store.acs();
         acScroll.setVisibility(all.size() > 1 ? android.view.View.VISIBLE : android.view.View.GONE);
+        // קבוצות
+        JSONArray groups = store.groups();
+        for (int i = 0; i < groups.length(); i++) {
+            JSONObject g = groups.optJSONObject(i);
+            List<AcConfig> m = store.members(g);
+            boolean anyOn = false;
+            for (AcConfig t : m) anyOn |= t.state.power;
+            boolean sel = group != null && group.optInt("id") == g.optInt("id");
+            Button b = chip((anyOn ? "🟢 " : "⚪ ") + "👥 " + g.optString("name"), sel);
+            b.setOnClickListener(v -> switchToGroup(g.optInt("id")));
+            b.setOnLongClickListener(v -> {
+                GroupUi.edit(this, g, id -> afterGroupEdit(id));
+                return true;
+            });
+            addChip(b);
+        }
+        // מזגנים בודדים
         for (AcConfig a : all) {
-            boolean sel = a.id == ac.id;
-            Button b = Ui.button(this, (a.state.power ? "🟢 " : "⚪ ") + a.name,
-                    sel ? Ui.ACCENT : Ui.ACCENT_SOFT, sel ? Color.WHITE : Ui.ACCENT);
-            b.setTextSize(14);
+            boolean sel = group == null && a.id == ac.id;
+            Button b = chip((a.state.power ? "🟢 " : "⚪ ") + a.name, sel);
             b.setOnClickListener(v -> switchTo(a.id));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-            lp.setMarginEnd(Ui.dp(this, 8));
-            acRow.addView(b, lp);
+            addChip(b);
+        }
+        if (all.size() > 1) {
+            Button add = chip("＋ קבוצה", false);
+            add.setOnClickListener(v -> GroupUi.edit(this, null, id -> afterGroupEdit(id)));
+            addChip(add);
         }
     }
 
-    private void switchTo(int id) {
-        if (id == ac.id) return;
-        // שינוי שממתין לשליחה נשלח למזגן הקודם לפני המעבר
+    private Button chip(String text, boolean sel) {
+        Button b = Ui.button(this, text, sel ? Ui.ACCENT : Ui.ACCENT_SOFT, sel ? Color.WHITE : Ui.ACCENT);
+        b.setTextSize(14);
+        return b;
+    }
+
+    private void addChip(Button b) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        lp.setMarginEnd(Ui.dp(this, 8));
+        acRow.addView(b, lp);
+    }
+
+    private void afterGroupEdit(int id) {
+        if (id != 0) store.setCurrentGroup(id);
+        reloadScreen();
+    }
+
+    private void flushPending() {
         if (pending) { h.removeCallbacks(pendingSend); pending = false; sendState(false); }
+    }
+
+    private void switchTo(int id) {
+        if (group == null && id == ac.id) return;
+        flushPending();  // שינוי שממתין נשלח למזגן/לקבוצה הקודמים לפני המעבר
+        store.setCurrentGroup(0);
         store.setCurrent(id);
+        reloadScreen();
+    }
+
+    private void switchToGroup(int gid) {
+        if (group != null && group.optInt("id") == gid) return;
+        flushPending();
+        store.setCurrentGroup(gid);
+        reloadScreen();
+    }
+
+    private void reloadScreen() {
+        needOn.clear();
         load();
-        titleView.setText(ac.name);
+        titleView.setText(title());
         renderAcs();
         refresh();
         status("");
+    }
+
+    /** שומר את המצב המוצג לכל המזגנים שבשליטה. */
+    private void saveAll() {
+        for (AcConfig t : targets) {
+            if (st.power && !t.state.power) needOn.add(t.id);
+            t.state = st.copy();
+            store.saveState(t.id, t.state);
+        }
     }
 
     private void refresh() {
@@ -241,7 +330,14 @@ public class MainActivity extends Activity {
         tempView.setTextColor(st.power ? (st.mode == FujitsuIr.MODE_HEAT ? Ui.HEAT : Ui.ACCENT) : Ui.MUTED);
         powerBtn.setText(st.power ? "⏻  כבה" : "⏻  הדלק");
         powerBtn.setBackground(Ui.round(st.power ? Ui.OFF : Ui.ON, Ui.dp(this, 16)));
-        offHint.setText(st.power ? AcState.MODE_NAMES[st.mode] : "המזגן כבוי · השינויים יישלחו בהדלקה");
+        String members = "";
+        if (group != null) {
+            StringBuilder sb = new StringBuilder();
+            for (AcConfig t : targets) { if (sb.length() > 0) sb.append(" + "); sb.append(t.name); }
+            members = sb + " · ";
+        }
+        offHint.setText(members + (st.power ? AcState.MODE_NAMES[st.mode]
+                : (group != null ? "כבויים" : "המזגן כבוי") + " · השינויים יישלחו בהדלקה"));
         modeSeg.select(st.mode);
         fanSeg.select(st.fan);
         swingSeg.select(st.swing);
@@ -256,7 +352,7 @@ public class MainActivity extends Activity {
 
     /** שינוי במצב: נשמר ונשלח (באיחור קצר כדי לאחד לחיצות רצופות). */
     private void changed() {
-        store.saveState(ac.id, st);
+        saveAll();
         refresh();
         if (!st.power) return;
         h.removeCallbacks(pendingSend);
@@ -269,7 +365,7 @@ public class MainActivity extends Activity {
         h.removeCallbacks(pendingSend);
         pending = false;
         st.power = !st.power;
-        store.saveState(ac.id, st);
+        saveAll();
         refresh();
         renderAcs();
         sendState(st.power);
@@ -277,14 +373,34 @@ public class MainActivity extends Activity {
 
     private void sendState(boolean turnOn) {
         final String what = st.summary();
+        final AcState snap = st.copy();
+        List<AcConfig> ts = new ArrayList<>(targets);
         status("שולח…");
-        Remote.send(ac, Remote.irForState(ac, st, turnOn), err -> status(err == null ? "✓ נשלח: " + what : "✗ " + err));
+        Multi m = new Multi(ts.size(), "✓ נשלח" + (ts.size() > 1 ? " ל-" + ts.size() + " מזגנים" : "") + ": " + what);
+        for (AcConfig t : ts) {
+            boolean on = turnOn || needOn.remove(t.id);
+            Remote.send(t, Remote.irForState(t, snap, on), err -> m.done(t, err));
+        }
     }
 
     private void sendShort(int cmd, String okMsg) {
-        if (!st.power) { status("הדלק קודם את המזגן"); return; }
+        if (!st.power) { status("הדלק קודם את " + (group != null ? "המזגנים" : "המזגן")); return; }
         status("שולח…");
-        Remote.send(ac, Remote.irForShort(ac, cmd), err -> status(err == null ? "✓ " + okMsg : "✗ " + err));
+        List<AcConfig> ts = new ArrayList<>(targets);
+        Multi m = new Multi(ts.size(), "✓ " + okMsg + (ts.size() > 1 ? " (" + ts.size() + " מזגנים)" : ""));
+        for (AcConfig t : ts) Remote.send(t, Remote.irForShort(t, cmd), err -> m.done(t, err));
+    }
+
+    /** מאחד את תוצאות השליחה לכמה מזגנים לשורת סטטוס אחת. */
+    private class Multi {
+        int left;
+        final String ok;
+        final List<String> errs = new ArrayList<>();
+        Multi(int n, String ok) { left = n; this.ok = ok; }
+        void done(AcConfig t, String err) {
+            if (err != null) errs.add((targets.size() > 1 ? t.name + ": " : "") + err);
+            if (--left == 0) status(errs.isEmpty() ? ok : "✗ " + String.join(" · ", errs));
+        }
     }
 
     private void status(String s) { statusView.setText(s); }
@@ -326,13 +442,12 @@ public class MainActivity extends Activity {
             Button b = Ui.soft(this, o.optString("name") + "\n" + f.temp + "° " + AcState.MODE_ICONS[f.mode]);
             b.setTextSize(13);
             b.setOnClickListener(v -> {
-                boolean wasOn = st.power;
                 st = f.copy();
                 st.power = true;
-                store.saveState(ac.id, st);
+                saveAll();
                 refresh();
                 renderAcs();
-                sendState(!wasOn);
+                sendState(false);
             });
             b.setOnLongClickListener(v -> {
                 new AlertDialog.Builder(this).setTitle("למחוק את \"" + o.optString("name") + "\"?")

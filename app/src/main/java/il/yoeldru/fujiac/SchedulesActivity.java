@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 10:30 - תזמונים לכל מזגן
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 12:42 - תזמונים למזגן או לקבוצה
 // מסך תזמונים: הדלקה/כיבוי בשעה קבועה בימים נבחרים, וטיימר כיבוי מהיר.
 package il.yoeldru.fujiac;
 
@@ -34,7 +34,7 @@ public class SchedulesActivity extends Activity {
         LinearLayout col = Ui.screen(this);
         col.addView(Ui.text(this, "תזמונים וטיימר", 24, Ui.TEXT, true));
         Ui.spacer(col, 6);
-        col.addView(Ui.text(this, "תזמונים וטיימר ל" + store.current().name + " (ובתזמון חדש אפשר לבחור מזגן). התזמונים פועלים מהטלפון – הוא צריך להיות בבית ומחובר ל-Wi-Fi בשעת התזמון.",
+        col.addView(Ui.text(this, "טיימר הכיבוי פועל על מה שנבחר במסך הראשי. בתזמון חדש בוחרים מזגן או קבוצה. התזמונים פועלים מהטלפון – הוא צריך להיות בבית ומחובר ל-Wi-Fi בשעת התזמון.",
                 12.5f, Ui.MUTED, false));
         Ui.spacer(col, 12);
 
@@ -91,10 +91,18 @@ public class SchedulesActivity extends Activity {
             s.put("action", "off");
             s.put("timer", true);
             s.put("acId", store.current().id);
+            s.put("groupId", store.currentGroup());
             save(s);
-            Toast.makeText(this, String.format(store.current().name + " יכובה ב-%02d:%02d", c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE)),
+            Toast.makeText(this, String.format(targetName(s) + " יכובה ב-%02d:%02d", c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE)),
                     Toast.LENGTH_LONG).show();
         } catch (Exception ignored) {}
+    }
+
+    private String targetName(JSONObject s) {
+        JSONObject g = s.optInt("groupId") != 0 ? store.group(s.optInt("groupId")) : null;
+        if (g != null) return "👥 " + g.optString("name");
+        AcConfig a = store.ac(s.optInt("acId"));
+        return a != null ? a.name : "מזגן";
     }
 
     private void save(JSONObject s) {
@@ -123,8 +131,7 @@ public class SchedulesActivity extends Activity {
             JSONObject s = a.optJSONObject(i);
             LinearLayout card = Ui.card(this);
             LinearLayout r = Ui.row(this);
-            AcConfig owner = store.ac(s.optInt("acId"));
-            TextView t = Ui.text(this, Scheduler.describe(s, store.acs().size() > 1 && owner != null ? owner.name : null), 16, s.optBoolean("enabled", true) ? Ui.TEXT : Ui.MUTED, false);
+            TextView t = Ui.text(this, Scheduler.describe(s, store.acs().size() > 1 ? targetName(s) : null), 16, s.optBoolean("enabled", true) ? Ui.TEXT : Ui.MUTED, false);
             r.addView(t, new LinearLayout.LayoutParams(0, -2, 1f));
             Switch sw = new Switch(this);
             sw.setChecked(s.optBoolean("enabled", true));
@@ -179,20 +186,36 @@ public class SchedulesActivity extends Activity {
         v.setPadding(p, p / 2, p, 0);
         v.setLayoutDirection(LinearLayout.LAYOUT_DIRECTION_RTL);
 
-        // בחירת מזגן
+        // בחירת יעד: מזגן בודד או קבוצה
         java.util.List<AcConfig> all = store.acs();
+        org.json.JSONArray groups = store.groups();
         final int[] acId = {s.optInt("acId", store.current().id)};
+        final int[] groupId = {s.optInt("groupId", existing == null ? store.currentGroup() : 0)};
         if (all.size() > 1) {
-            v.addView(Ui.label(this, "מזגן"));
-            String[] names = new String[all.size()];
-            int sel = 0;
-            for (int i = 0; i < names.length; i++) {
-                names[i] = all.get(i).name;
-                if (all.get(i).id == acId[0]) sel = i;
+            v.addView(Ui.label(this, "על מה התזמון?"));
+            android.widget.RadioGroup rg = new android.widget.RadioGroup(this);
+            int rid = 1000;
+            for (int i = 0; i < groups.length(); i++) {
+                JSONObject g = groups.optJSONObject(i);
+                android.widget.RadioButton rb = new android.widget.RadioButton(this);
+                rb.setText("👥 " + g.optString("name"));
+                rb.setTextSize(16);
+                rb.setId(rid++);
+                final int gid = g.optInt("id");
+                rb.setOnClickListener(x -> groupId[0] = gid);
+                rg.addView(rb);
+                if (groupId[0] == gid) rb.setChecked(true);
             }
-            Ui.Segmented acSeg = new Ui.Segmented(this, names, i -> acId[0] = all.get(i).id);
-            acSeg.select(sel);
-            v.addView(acSeg.view);
+            for (AcConfig a : all) {
+                android.widget.RadioButton rb = new android.widget.RadioButton(this);
+                rb.setText(a.name);
+                rb.setTextSize(16);
+                rb.setId(rid++);
+                rb.setOnClickListener(x -> { groupId[0] = 0; acId[0] = a.id; });
+                rg.addView(rb);
+                if (groupId[0] == 0 && acId[0] == a.id) rb.setChecked(true);
+            }
+            v.addView(rg);
             Ui.spacer(v, 8);
         }
 
@@ -270,6 +293,7 @@ public class SchedulesActivity extends Activity {
                         s.put("swing", swing[0]);
                         s.put("enabled", true);
                         s.put("acId", acId[0]);
+                        s.put("groupId", groupId[0]);
                     } catch (Exception ignored) {}
                     save(s);
                 })

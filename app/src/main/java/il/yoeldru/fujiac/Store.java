@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 10:30 - תמיכה בכמה מזגנים
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 12:42 - כמה מזגנים וקבוצות מזגנים
 // שמירת הגדרות ונתונים מקומית בטלפון (SharedPreferences + JSON).
 package il.yoeldru.fujiac;
 
@@ -18,6 +18,7 @@ public class Store {
     public static final String LEARNED = "learned";
     public static final String SCHEDULES = "schedules";
     private static final String ACS = "acs";
+    public static final String GROUPS = "groups";
 
     public Store(Context c) {
         p = c.getApplicationContext().getSharedPreferences("fujiac", Context.MODE_PRIVATE);
@@ -96,6 +97,53 @@ public class Store {
         a.state = s;
         saveAc(a);
     }
+
+    // ----- קבוצות -----
+    // קבוצה: {id, name, acs:[ids]}. המסך הראשי שולט בכל חברי הקבוצה יחד.
+    public JSONArray groups() { return list(GROUPS); }
+
+    public JSONObject group(int id) {
+        JSONArray g = groups();
+        for (int i = 0; i < g.length(); i++) if (g.optJSONObject(i).optInt("id") == id) return g.optJSONObject(i);
+        return null;
+    }
+
+    /** חברי הקבוצה שעדיין קיימים. */
+    public List<AcConfig> members(JSONObject group) {
+        List<AcConfig> out = new ArrayList<>();
+        if (group == null) return out;
+        JSONArray ids = group.optJSONArray("acs");
+        if (ids == null) return out;
+        for (int i = 0; i < ids.length(); i++) {
+            AcConfig a = ac(ids.optInt(i));
+            if (a != null) out.add(a);
+        }
+        return out;
+    }
+
+    public void saveGroup(JSONObject g) {
+        JSONArray a = groups();
+        boolean found = false;
+        for (int i = 0; i < a.length(); i++) {
+            if (a.optJSONObject(i).optInt("id") == g.optInt("id")) {
+                try { a.put(i, g); } catch (Exception ignored) {}
+                found = true;
+            }
+        }
+        if (!found) a.put(g);
+        saveList(GROUPS, a);
+    }
+
+    public void deleteGroup(int id) {
+        JSONArray a = groups();
+        for (int i = a.length() - 1; i >= 0; i--) if (a.optJSONObject(i).optInt("id") == id) a.remove(i);
+        saveList(GROUPS, a);
+        if (currentGroup() == id) setCurrentGroup(0);
+    }
+
+    /** הקבוצה שנבחרה במסך הראשי (0 = מזגן בודד). */
+    public int currentGroup() { return p.getInt("current_group", 0); }
+    public void setCurrentGroup(int id) { p.edit().putInt("current_group", id).apply(); }
 
     // ----- רשימות (מועדפים, כפתורים נלמדים, תזמונים) -----
     public JSONArray list(String key) {

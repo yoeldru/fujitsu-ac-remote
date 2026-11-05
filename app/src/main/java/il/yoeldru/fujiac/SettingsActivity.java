@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 12:06 - הגדרות לכל מזגן + בדיקת עדכונים
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 12:42 - הגדרות לכל מזגן, קבוצות, בדיקת עדכונים
 // הגדרות: בחירת מזגן, איתור ה-RM4 שלו ברשת, דגם וקוד שלט, בדיקה, הוספה ומחיקה של מזגנים.
 package il.yoeldru.fujiac;
 
@@ -69,6 +69,27 @@ public class SettingsActivity extends Activity {
         add.setOnClickListener(v -> { store.addAc(); render(); msg("נוסף מזגן חדש – הגדר לו את השלט החכם שלו"); });
         acs.addView(add, new LinearLayout.LayoutParams(-1, -2));
         root.addView(acs);
+
+        // --- קבוצות ---
+        if (all.size() > 1) {
+            LinearLayout gc = Ui.card(this);
+            gc.addView(Ui.label(this, "קבוצות מזגנים (שליטה ותזמון של כמה מזגנים יחד)"));
+            org.json.JSONArray groups = store.groups();
+            for (int i = 0; i < groups.length(); i++) {
+                org.json.JSONObject g = groups.optJSONObject(i);
+                StringBuilder names = new StringBuilder();
+                for (AcConfig m : store.members(g)) { if (names.length() > 0) names.append(" + "); names.append(m.name); }
+                Button gb = Ui.soft(this, "👥 " + g.optString("name") + "  ·  " + names + "  ✏️");
+                gb.setOnClickListener(v -> GroupUi.edit(this, g, id -> render()));
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+                lp.bottomMargin = Ui.dp(this, 6);
+                gc.addView(gb, lp);
+            }
+            Button ng = Ui.primary(this, "＋ קבוצה חדשה");
+            ng.setOnClickListener(v -> GroupUi.edit(this, null, id -> render()));
+            gc.addView(ng, new LinearLayout.LayoutParams(-1, -2));
+            root.addView(gc);
+        }
 
         // --- שם ---
         LinearLayout nameCard = Ui.card(this);
