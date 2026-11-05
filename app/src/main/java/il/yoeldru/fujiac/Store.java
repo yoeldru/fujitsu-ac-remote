@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 12:42 - כמה מזגנים וקבוצות מזגנים
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 22:46 - כמה מזגנים, קבוצות, יצוא/יבוא הגדרות
 // שמירת הגדרות ונתונים מקומית בטלפון (SharedPreferences + JSON).
 package il.yoeldru.fujiac;
 
@@ -151,6 +151,73 @@ public class Store {
         catch (Exception e) { return new JSONArray(); }
     }
     public void saveList(String key, JSONArray a) { p.edit().putString(key, a.toString()).apply(); }
+
+    // ----- יצוא / יבוא -----
+    public static final String EXPORT_PREFIX = "FUJIAC1:";
+
+    /** כל ההגדרות כ-JSON: מזגנים (כולל השלט של כל אחד), קבוצות, מועדפים, כפתורים נלמדים ותזמונים. */
+    public JSONObject exportAll(boolean withSchedules) {
+        JSONObject o = new JSONObject();
+        try {
+            o.put("app", "fujiac");
+            o.put("version", 1);
+            o.put("acs", list(ACS));
+            o.put("groups", list(GROUPS));
+            o.put("favorites", list(FAVORITES));
+            o.put("learned", list(LEARNED));
+            if (withSchedules) o.put("schedules", list(SCHEDULES));
+            o.put("next_id", p.getInt("next_id", 1));
+        } catch (Exception ignored) {}
+        return o;
+    }
+
+    /** קוד טקסט קצר לשליחה בוואטסאפ: קידומת + JSON מכווץ ב-Base64. */
+    public String exportCode(boolean withSchedules) {
+        try {
+            byte[] raw = exportAll(withSchedules).toString().getBytes("UTF-8");
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            try (java.util.zip.GZIPOutputStream gz = new java.util.zip.GZIPOutputStream(bos)) { gz.write(raw); }
+            return EXPORT_PREFIX + android.util.Base64.encodeToString(bos.toByteArray(), android.util.Base64.NO_WRAP);
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /** מפענח קוד יצוא או JSON רגיל (מקובץ). זורק שגיאה בעברית אם לא תקין. */
+    public static JSONObject decode(String text) throws Exception {
+        String t = text == null ? "" : text.trim();
+        int i = t.indexOf(EXPORT_PREFIX);
+        if (i >= 0) {
+            String b64 = t.substring(i + EXPORT_PREFIX.length()).split("\\s")[0];
+            byte[] gz = android.util.Base64.decode(b64, android.util.Base64.DEFAULT);
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            try (java.util.zip.GZIPInputStream in = new java.util.zip.GZIPInputStream(new java.io.ByteArrayInputStream(gz))) {
+                byte[] buf = new byte[4096];
+                int n;
+                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            }
+            t = out.toString("UTF-8");
+        }
+        JSONObject o;
+        try { o = new JSONObject(t); } catch (Exception e) { throw new Exception("זה לא נראה כמו קובץ/קוד הגדרות של האפליקציה"); }
+        if (!"fujiac".equals(o.optString("app"))) throw new Exception("זה לא קובץ הגדרות של שלט פוג'יטסו");
+        return o;
+    }
+
+    /** מחליף את כל ההגדרות בטלפון בהגדרות המיובאות. */
+    public void importAll(JSONObject o) {
+        SharedPreferences.Editor e = p.edit();
+        JSONArray acs = o.optJSONArray("acs");
+        if (acs != null && acs.length() > 0) e.putString(ACS, acs.toString());
+        for (String k : new String[]{GROUPS, FAVORITES, LEARNED, SCHEDULES}) {
+            JSONArray a = o.optJSONArray(k);
+            if (a != null) e.putString(k, a.toString());
+        }
+        e.putInt("next_id", Math.max(p.getInt("next_id", 1), o.optInt("next_id", 1)) + 1);
+        e.putInt("current_group", 0);
+        if (acs != null && acs.length() > 0) e.putInt("current_ac", acs.optJSONObject(0).optInt("id"));
+        e.apply();
+    }
 
     public int nextId() {
         int id = p.getInt("next_id", 1);

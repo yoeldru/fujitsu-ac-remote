@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 15:04 - אשף הגדרת שלט חדש
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 22:46 - גיבוי והעברת הגדרות
 // הגדרות: בחירת מזגן, איתור ה-RM4 שלו ברשת, דגם וקוד שלט, בדיקה, הוספה ומחיקה של מזגנים.
 package il.yoeldru.fujiac;
 
@@ -215,6 +215,11 @@ public class SettingsActivity extends Activity {
         msg = Ui.text(this, "", 14, Ui.ACCENT, true);
         root.addView(msg);
         Ui.spacer(root, 16);
+        Button backup = Ui.primary(this, "📦 גיבוי והעברת הגדרות לטלפון אחר");
+        backup.setOnClickListener(v -> startActivity(new android.content.Intent(this, BackupActivity.class)));
+        root.addView(backup, new LinearLayout.LayoutParams(-1, -2));
+        Ui.spacer(root, 12);
+
         LinearLayout upCard = Ui.card(this);
         upCard.addView(Ui.label(this, "עדכונים"));
         TextView ver = Ui.text(this, "גרסה מותקנת: " + BuildConfig.VERSION_NAME, 14, Ui.TEXT, false);
