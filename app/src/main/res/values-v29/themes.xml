@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- נכתב: 2026-11-05 07:54 (שעון ישראל) - אנדרואיד 10+: מצב כהה/בהיר לפי הטלפון -->
+<resources>
+    <style name="AppTheme" parent="@android:style/Theme.DeviceDefault.DayNight">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:colorAccent">#1A73E8</item>
+    </style>
+</resources>

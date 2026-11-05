@@ -1,0 +1,53 @@
+# נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 12:06 - מספר build ו"מה חדש" לעדכון מתוך האפליקציה
+# בונה APK בכל דחיפה ל-main ומפרסם אותו ב-Release קבוע בשם latest
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build
+        run: gradle :app:assembleRelease --no-daemon
+
+      - name: Release notes
+        run: echo "NOTES=$(git log -1 --format=%s)" >> $GITHUB_ENV
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/release/app-release.apk fujitsu-remote.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fujitsu-remote
+          path: fujitsu-remote.apk
+
+      - name: Publish to "latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: שלט פוג'יטסו – גרסה אחרונה
+          # האפליקציה קוראת מכאן את מספר הגרסה ואת "מה חדש"
+          body: |
+            build #${{ github.run_number }}
+            ${{ env.NOTES }}
+          prerelease: false
+          make_latest: true
+          files: fujitsu-remote.apk

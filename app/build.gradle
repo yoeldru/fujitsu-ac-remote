@@ -1,0 +1,52 @@
+// נכתב: 2026-11-05 07:54 (שעון ישראל)
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'il.yoeldru.fujiac'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'il.yoeldru.fujiac'
+        minSdk 26
+        targetSdk 34
+        // מספר הגרסה עולה אוטומטית בכל בנייה ב-GitHub
+        versionCode (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+        versionName "1.0." + (System.getenv('GITHUB_RUN_NUMBER') ?: '0')
+    }
+
+    // חתימה קבועה - כדי שעדכונים יותקנו מעל הגרסה הקודמת בלי למחוק את האפליקציה
+    signingConfigs {
+        fixed {
+            storeFile file('fujiac.keystore')
+            storePassword 'fujiac123'
+            keyAlias 'fujiac'
+            keyPassword 'fujiac123'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.fixed
+        }
+        debug {
+            signingConfig signingConfigs.fixed
+        }
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

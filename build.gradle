@@ -1,0 +1,4 @@
+// נכתב: 2026-11-05 07:54 (שעון ישראל)
+plugins {
+    id 'com.android.application' version '8.5.2' apply false
+}
