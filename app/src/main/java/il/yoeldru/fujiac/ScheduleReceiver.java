@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 12:42 - תזמון למזגן או לקבוצה
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 23:09 - תזמון למזגן או לקבוצה (IR ו-Wi-Fi)
 // מופעל בזמן התזמון: שולח את הפקודה למזגן וקובע את המועד הבא.
 // גם מופעל אחרי הפעלה מחדש של הטלפון כדי לשחזר את התזמונים.
 package il.yoeldru.fujiac;
@@ -35,7 +35,7 @@ public class ScheduleReceiver extends BroadcastReceiver {
             if (one == null) one = store.current();
             targets.add(one);
         }
-        java.util.List<byte[]> codes = new java.util.ArrayList<>();
+        java.util.List<AcState> states = new java.util.ArrayList<>();
         for (AcConfig ac : targets) {
             AcState st = ac.state;
             if (s.optString("action").equals("off")) {
@@ -49,7 +49,7 @@ public class ScheduleReceiver extends BroadcastReceiver {
             }
             store.saveState(ac.id, st);
             // בתזמון תמיד שולחים "הדלקה" מפורשת - כך המזגן יידלק גם אם הופעל/כובה בשלט הרגיל
-            codes.add(Remote.irForState(ac, st, st.power));
+            states.add(st.copy());
         }
 
         // תזמון חד-פעמי מתבטל; קבוע נקבע מחדש
@@ -64,7 +64,7 @@ public class ScheduleReceiver extends BroadcastReceiver {
             for (int k = 0; k < targets.size(); k++) {
                 for (int attempt = 0; attempt < 3; attempt++) {
                     try {
-                        Remote.sendBlocking(targets.get(k), codes.get(k));
+                        Remote.applyBlocking(targets.get(k), states.get(k), states.get(k).power);
                         break;
                     } catch (Exception e) {
                         try { Thread.sleep(3000); } catch (InterruptedException ignored) {}

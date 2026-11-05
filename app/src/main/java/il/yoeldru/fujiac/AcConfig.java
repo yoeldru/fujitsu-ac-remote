@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 10:30 (שעון ישראל)
+// נכתב: 2026-11-05 10:30 (שעון ישראל) · עודכן: 2026-11-05 23:09 - סוג מזגן: IR או Wi-Fi
 // הגדרות של מזגן אחד: שם, השלט החכם (RM4) שלו, דגם שלט, קוד שלט (A-D) והמצב האחרון.
 package il.yoeldru.fujiac;
 
@@ -9,6 +9,8 @@ import il.yoeldru.fujiac.core.FujitsuIr;
 
 public class AcConfig {
     public int id;
+    /** "ir" = מזגן שנשלט ב-IR דרך RM4 (פוג'יטסו); "aux" = מזגן Wi-Fi מבוסס Broadlink (טורנדו/AUX). */
+    public String kind = "ir";
     public String name = "מזגן";
     public String host = "";
     public String mac = "";
@@ -21,6 +23,8 @@ public class AcConfig {
     public AcState state = new AcState();
 
     public static final String[] REMOTE_IDS = {"A", "B", "C", "D"};
+
+    public boolean isWifi() { return "aux".equals(kind); }
 
     public boolean hasDevice() { return host != null && !host.isEmpty(); }
 
@@ -41,7 +45,7 @@ public class AcConfig {
     public JSONObject toJson() {
         JSONObject o = new JSONObject();
         try {
-            o.put("id", id); o.put("name", name); o.put("host", host); o.put("mac", mac);
+            o.put("id", id); o.put("kind", kind); o.put("name", name); o.put("host", host); o.put("mac", mac);
             o.put("devtype", devtype); o.put("devName", devName); o.put("model", model);
             o.put("alwaysPower", alwaysPower); o.put("remoteId", remoteId);
             o.put("state", state.toJson());
@@ -53,6 +57,7 @@ public class AcConfig {
         AcConfig a = new AcConfig();
         if (o == null) return a;
         a.id = o.optInt("id");
+        a.kind = o.optString("kind", "ir");
         a.name = o.optString("name", "מזגן");
         a.host = o.optString("host", "");
         a.mac = o.optString("mac", "");

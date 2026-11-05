@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 22:46 - גיבוי והעברת הגדרות
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 23:09 - מזגני Wi-Fi (טורנדו/AUX)
 // הגדרות: בחירת מזגן, איתור ה-RM4 שלו ברשת, דגם וקוד שלט, בדיקה, הוספה ומחיקה של מזגנים.
 package il.yoeldru.fujiac;
 
@@ -21,6 +21,7 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 
+import il.yoeldru.fujiac.core.AuxAc;
 import il.yoeldru.fujiac.core.BroadlinkDevice;
 import il.yoeldru.fujiac.core.FujitsuIr;
 
@@ -70,9 +71,14 @@ public class SettingsActivity extends Activity {
             Ui.addWeighted(r, btn, 3);
         }
         if (all.size() % 3 != 0) for (int k = all.size() % 3; k < 3; k++) Ui.addWeighted(r, new TextView(this), 3);
-        Button add = Ui.soft(this, "＋ הוסף מזגן");
+        LinearLayout addRow = Ui.row(this);
+        Button add = Ui.soft(this, "＋ מזגן עם שלט (IR)");
         add.setOnClickListener(v -> { store.addAc(); render(); msg("נוסף מזגן חדש – הגדר לו את השלט החכם שלו"); });
-        acs.addView(add, new LinearLayout.LayoutParams(-1, -2));
+        Button addWifi = Ui.soft(this, "＋ מזגן Wi-Fi (טורנדו)");
+        addWifi.setOnClickListener(v -> addWifiAcs());
+        Ui.addWeighted(addRow, add, 3);
+        Ui.addWeighted(addRow, addWifi, 3);
+        acs.addView(addRow);
         root.addView(acs);
 
         // --- קבוצות ---
@@ -120,17 +126,19 @@ public class SettingsActivity extends Activity {
 
         // --- השלט החכם ---
         LinearLayout dev = Ui.card(this);
-        dev.addView(Ui.label(this, "השלט החכם של " + ac.name));
+        dev.addView(Ui.label(this, ac.isWifi() ? ac.name + " ברשת (מזגן Wi-Fi)" : "השלט החכם של " + ac.name));
         devInfo = Ui.text(this, "", 15, Ui.TEXT, false);
         dev.addView(devInfo);
         Ui.spacer(dev, 10);
         Button find = Ui.primary(this, "🔍 חפש ברשת הביתית");
         find.setOnClickListener(v -> discover(null));
         dev.addView(find, new LinearLayout.LayoutParams(-1, -2));
-        Ui.spacer(dev, 8);
-        Button wizard = Ui.soft(this, "🆕 הגדרת שלט חדש / אחרי ריסט (בלי Broadlink)");
-        wizard.setOnClickListener(v -> startActivity(new android.content.Intent(this, SetupDeviceActivity.class)));
-        dev.addView(wizard, new LinearLayout.LayoutParams(-1, -2));
+        if (!ac.isWifi()) {
+            Ui.spacer(dev, 8);
+            Button wizard = Ui.soft(this, "🆕 הגדרת שלט חדש / אחרי ריסט (בלי Broadlink)");
+            wizard.setOnClickListener(v -> startActivity(new android.content.Intent(this, SetupDeviceActivity.class)));
+            dev.addView(wizard, new LinearLayout.LayoutParams(-1, -2));
+        }
         Ui.spacer(dev, 8);
         LinearLayout ipRow = Ui.row(this);
         EditText ip = new EditText(this);
@@ -144,8 +152,10 @@ public class SettingsActivity extends Activity {
         ipRow.addView(connect);
         dev.addView(ipRow);
         Ui.spacer(dev, 8);
-        dev.addView(Ui.text(this,
-                "שלט שחובר דרך אפליקציית Broadlink: ודא שם ש\"נעילת מכשיר\" (Lock device) כבויה. "
+        dev.addView(Ui.text(this, ac.isWifi()
+                ? "המזגן מחובר ל-Wi-Fi דרך אפליקציית Tornado WIFI 3 – האפליקציה הזו מדברת איתו ישירות ברשת הביתית. "
+                        + "מומלץ לקבע לו כתובת IP בנתב."
+                : "שלט שחובר דרך אפליקציית Broadlink: ודא שם ש\"נעילת מכשיר\" (Lock device) כבויה. "
                         + "הטלפון צריך להיות על אותה רשת Wi-Fi. מומלץ לקבע לכל שלט כתובת IP בנתב.",
                 12.5f, Ui.MUTED, false));
         root.addView(dev);
@@ -153,7 +163,12 @@ public class SettingsActivity extends Activity {
 
         // --- המזגן ---
         LinearLayout acCard = Ui.card(this);
-        acCard.addView(Ui.label(this, "סוג השלט המקורי (כתוב בגב השלט)"));
+        LinearLayout irOnly = new LinearLayout(this);
+        irOnly.setOrientation(LinearLayout.VERTICAL);
+        acCard.addView(irOnly);
+        if (ac.isWifi()) irOnly.setVisibility(android.view.View.GONE);
+        LinearLayout acCardIr = irOnly;
+        acCardIr.addView(Ui.label(this, "סוג השלט המקורי (כתוב בגב השלט)"));
         Ui.Segmented modelSeg = new Ui.Segmented(this, new String[]{"AR-RAH2E ודומיו", "AR-REW4E"}, i -> {
             AcConfig a = store.current();
             a.model = i == 0 ? FujitsuIr.MODEL_ARRAH2E : FujitsuIr.MODEL_ARREW4E;
@@ -161,10 +176,10 @@ public class SettingsActivity extends Activity {
             msg("נשמר");
         });
         modelSeg.select(ac.model == FujitsuIr.MODEL_ARREW4E ? 1 : 0);
-        acCard.addView(modelSeg.view);
-        Ui.spacer(acCard, 14);
+        acCardIr.addView(modelSeg.view);
+        Ui.spacer(acCardIr, 14);
 
-        acCard.addView(Ui.label(this, "קוד שלט (Custom code)"));
+        acCardIr.addView(Ui.label(this, "קוד שלט (Custom code)"));
         Ui.Segmented idSeg = new Ui.Segmented(this, AcConfig.REMOTE_IDS, i -> {
             AcConfig a = store.current();
             a.remoteId = i;
@@ -172,13 +187,13 @@ public class SettingsActivity extends Activity {
             msg("קוד שלט " + AcConfig.REMOTE_IDS[i] + " נשמר");
         });
         idSeg.select(ac.remoteId);
-        acCard.addView(idSeg.view);
-        Ui.spacer(acCard, 4);
-        acCard.addView(Ui.text(this,
+        acCardIr.addView(idSeg.view);
+        Ui.spacer(acCardIr, 4);
+        acCardIr.addView(Ui.text(this,
                 "ברירת המחדל היא A. אם שני מזגנים באותו חדר מגיבים יחד לאותה פקודה – "
                         + "קבע לאחד מהם קוד B (במזגן ובשלט המקורי, לפי חוברת ההוראות) ובחר B גם כאן.",
                 12.5f, Ui.MUTED, false));
-        Ui.spacer(acCard, 12);
+        Ui.spacer(acCardIr, 12);
 
         CheckBox pb = new CheckBox(this);
         pb.setText("שלח פקודת הדלקה בכל שינוי (אם משתמשים גם בשלט הרגיל והאפליקציה 'מתבלבלת' אם המזגן דולק)");
@@ -189,8 +204,8 @@ public class SettingsActivity extends Activity {
             a.alwaysPower = c;
             store.saveAc(a);
         });
-        acCard.addView(pb);
-        Ui.spacer(acCard, 12);
+        acCardIr.addView(pb);
+        Ui.spacer(acCardIr, 12);
         LinearLayout testRow = Ui.row(this);
         Button tOn = Ui.primary(this, "בדיקה: הדלק 24° קירור");
         Button tOff = Ui.soft(this, "בדיקה: כבה");
@@ -290,9 +305,13 @@ public class SettingsActivity extends Activity {
         });
     }
 
-    private void onFound(List<BroadlinkDevice> found, String err) {
+    private void onFound(List<BroadlinkDevice> allFound, String err) {
+        // מזגן Wi-Fi מחפש רק מזגנים; מזגן IR מחפש רק שלטים
+        List<BroadlinkDevice> found = new ArrayList<>();
+        for (BroadlinkDevice d : allFound)
+            if ((d.devtype == AuxAc.DEVTYPE) == ac.isWifi()) found.add(d);
         if (found.isEmpty()) {
-            msg("✗ לא נמצא שלט" + (err != null ? " (" + err + ")" : "")
+            msg((ac.isWifi() ? "✗ לא נמצא המזגן" : "✗ לא נמצא שלט") + (err != null ? " (" + err + ")" : "")
                     + ". ודא שהטלפון על אותו Wi-Fi, או הזן IP ידנית (מופיע בנתב או באפליקציית Broadlink).");
             return;
         }
@@ -305,11 +324,98 @@ public class SettingsActivity extends Activity {
             String owner = "";
             for (AcConfig a : all)
                 if (a.id != ac.id && a.mac.equals(FujitsuIr.hex(d.macRaw))) owner = "  (משויך ל" + a.name + ")";
-            names[i] = (d.name.isEmpty() ? "RM4" : d.name) + " · " + d.host + owner;
+            names[i] = (d.name.isEmpty() ? (ac.isWifi() ? "מזגן" : "RM4") : d.name) + " · " + d.host + owner;
         }
         msg("נמצאו " + found.size() + " שלטים – בחר את זה של " + ac.name);
         new AlertDialog.Builder(this).setTitle("איזה שלט שייך ל" + ac.name + "?")
                 .setItems(names, (d, w) -> choose(found.get(w))).show();
+    }
+
+    // ---------- הוספת מזגני Wi-Fi ----------
+
+    private void addWifiAcs() {
+        msg("מחפש מזגני Wi-Fi ברשת…");
+        Context app = getApplicationContext();
+        Remote.NET.execute(() -> {
+            List<BroadlinkDevice> found = new ArrayList<>();
+            try {
+                InetAddress bc = subnetBroadcast(app);
+                if (bc != null) found.addAll(BroadlinkDevice.discover(bc, 4000));
+                if (found.isEmpty())
+                    found.addAll(BroadlinkDevice.discover(InetAddress.getByName("255.255.255.255"), 4000));
+            } catch (Exception ignored) {}
+            main.post(() -> onWifiFound(found));
+        });
+    }
+
+    private void onWifiFound(List<BroadlinkDevice> found) {
+        List<BroadlinkDevice> acsFound = new ArrayList<>();
+        int others = 0;
+        for (BroadlinkDevice d : found) {
+            if (d.devtype != AuxAc.DEVTYPE) { others++; continue; }
+            boolean exists = false;
+            for (AcConfig a : store.acs()) if (a.mac.equals(FujitsuIr.hex(d.macRaw))) exists = true;
+            if (!exists) acsFound.add(d);
+        }
+        if (acsFound.isEmpty()) {
+            msg("✗ לא נמצאו מזגני Wi-Fi חדשים ברשת" + (others > 0 ? " (נמצאו " + others + " שלטים אחרים)" : "")
+                    + ". ודא שהמזגנים מחוברים לחשמל ושהטלפון על אותה רשת. "
+                    + "אם הם עובדים באפליקציית Tornado אבל לא נמצאים כאן – ייתכן שהדגם עובד רק דרך הענן.");
+            return;
+        }
+        String[] names = new String[acsFound.size()];
+        boolean[] checked = new boolean[acsFound.size()];
+        for (int i = 0; i < names.length; i++) {
+            BroadlinkDevice d = acsFound.get(i);
+            names[i] = (d.name.isEmpty() ? "מזגן" : d.name) + " · " + d.host + " · " + d.macString();
+            checked[i] = true;
+        }
+        new AlertDialog.Builder(this).setTitle("נמצאו " + acsFound.size() + " מזגני Wi-Fi")
+                .setMultiChoiceItems(names, checked, (d, w, c) -> checked[w] = c)
+                .setPositiveButton("הוסף", (d, w) -> {
+                    List<BroadlinkDevice> chosen = new ArrayList<>();
+                    for (int i = 0; i < checked.length; i++) if (checked[i]) chosen.add(acsFound.get(i));
+                    addChosen(chosen);
+                })
+                .setNegativeButton("ביטול", null).show();
+    }
+
+    private void addChosen(List<BroadlinkDevice> chosen) {
+        if (chosen.isEmpty()) return;
+        msg("מתחבר…");
+        Remote.NET.execute(() -> {
+            StringBuilder report = new StringBuilder();
+            int lastId = 0;
+            for (BroadlinkDevice d : chosen) {
+                AcConfig a = new AcConfig();
+                a.id = store.nextId();
+                a.kind = "aux";
+                a.name = d.name.isEmpty() ? "מזגן Wi-Fi" : d.name;
+                a.setDevice(d);
+                String line;
+                try {
+                    d.auth();
+                    AuxAc.Status st = AuxAc.read(d);
+                    a.state = Remote.toAppState(st, a.state);
+                    line = "✓ " + a.name + " – " + (st.power == 1 ? "דולק, " + (int) st.temp + "°" : "כבוי")
+                            + (st.ambient != null ? String.format(java.util.Locale.US, " · בחדר %.1f°", st.ambient) : "");
+                } catch (Exception e) {
+                    line = "⚠ " + a.name + " – נוסף, אבל לא הגיב: " + e.getMessage();
+                }
+                store.saveAc(a);
+                lastId = a.id;
+                report.append(line).append('\n');
+            }
+            final int fLast = lastId;
+            main.post(() -> {
+                store.setCurrent(fLast);
+                render();
+                msg(report.toString().trim());
+                new AlertDialog.Builder(this).setTitle("מזגני Wi-Fi")
+                        .setMessage(report.toString().trim() + "\n\nאפשר לשנות לכל מזגן את השם כאן בהגדרות.")
+                        .setPositiveButton("אישור", null).show();
+            });
+        });
     }
 
     private void choose(BroadlinkDevice d) {
@@ -338,7 +444,7 @@ public class SettingsActivity extends Activity {
         AcState s = new AcState();
         s.power = on; s.temp = 24; s.mode = FujitsuIr.MODE_COOL;
         msg("שולח ל" + a.name + "…");
-        Remote.send(a, Remote.irForState(a, s, true),
+        Remote.apply(a, s, true,
                 err -> msg(err == null ? "✓ נשלח – האם " + a.name + " הגיב?" : "✗ " + err));
     }
 

@@ -57,6 +57,10 @@ public class LearnActivity extends Activity {
     }
 
     private void startLearning() {
+        if (store.current().isWifi()) {
+            msg.setText("✗ " + store.current().name + " הוא מזגן Wi-Fi – לימוד כפתורים מתאים רק למזגן עם שלט חכם (RM4)");
+            return;
+        }
         if (learning) return;
         learning = true;
         msg.setText("מכין את השלט החכם…");

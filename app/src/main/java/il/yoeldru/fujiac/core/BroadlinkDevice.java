@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 15:04 - הגדרת שלט חדש (מצב AP)
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 23:09 - הגדרת שלט חדש, פקודות גולמיות למזגני Wi-Fi (AUX/טורנדו)
 // תקשורת מקומית (UDP, פורט 80) עם Broadlink RM4 mini ברשת הביתית - ללא ענן.
 // מימוש הפרוטוקול לפי python-broadlink: גילוי, אימות (AES-128-CBC), שליחת IR ולימוד קודים.
 package il.yoeldru.fujiac.core;
@@ -269,6 +269,20 @@ public class BroadlinkDevice {
         int pLen = (int) getLE(payload, 0, 2);
         int end = Math.min(payload.length, pLen + 2);
         return end > 6 ? Arrays.copyOfRange(payload, 6, end) : new byte[0];
+    }
+
+    /** פקודה גולמית (0x6A) בלי עטיפת השלט - משמשת מזגני Wi-Fi מבוססי Broadlink. מחזיר את התשובה המפוענחת. */
+    public synchronized byte[] rawCommand(byte[] payload) throws IOException {
+        if (!authed) auth();
+        try {
+            return decryptPayload(sendPacket(0x6A, payload));
+        } catch (BroadlinkException e) {
+            if (e.code == -7 || e.code == -2 || e.code == -4012 || e.code == -1) {
+                auth();
+                return decryptPayload(sendPacket(0x6A, payload));
+            }
+            throw e;
+        }
     }
 
     public void sendIr(byte[] broadlinkIr) throws IOException {

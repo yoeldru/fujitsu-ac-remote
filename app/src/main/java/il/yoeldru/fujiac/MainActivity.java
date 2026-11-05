@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 12:42 - קבוצות מזגנים
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 23:09 - קבוצות, מזגני Wi-Fi (טורנדו) עם קריאת מצב אמיתי
 // המסך הראשי: הדלקה/כיבוי, טמפרטורה, מצב, מאוורר, תריסים, מועדפים.
 package il.yoeldru.fujiac;
 
@@ -65,6 +65,7 @@ public class MainActivity extends Activity {
         renderAcs();
         refresh();
         renderFavorites();
+        readLive();
         UpdateUi.quietCheck(info -> {
             boolean has = info != null && info.isNewer();
             updateCard.setVisibility(has ? android.view.View.VISIBLE : android.view.View.GONE);
@@ -314,6 +315,40 @@ public class MainActivity extends Activity {
         renderAcs();
         refresh();
         status("");
+        readLive();
+    }
+
+    /** מזגני Wi-Fi מדווחים את המצב האמיתי שלהם - מעדכנים את המסך (גם אם שינו בשלט הרגיל). */
+    private String ambientText = "";
+
+    private void readLive() {
+        ambientText = "";
+        for (AcConfig t : new ArrayList<>(targets)) {
+            if (!t.isWifi()) continue;
+            final int acId = t.id;
+            Remote.auxRead(t, (stat, err) -> {
+                if (isFinishing()) return;
+                AcConfig fresh = store.ac(acId);
+                if (fresh == null) return;
+                if (stat == null) {
+                    if (targets.size() == 1) status("✗ " + fresh.name + ": " + err);
+                    return;
+                }
+                fresh.state = Remote.toAppState(stat, fresh.state);
+                store.saveAc(fresh);
+                boolean stillHere = false;
+                for (AcConfig x : targets) if (x.id == acId) stillHere = true;
+                if (!stillHere || pending) return;
+                if (stat.ambient != null) ambientText = String.format(java.util.Locale.US, "🌡️ בחדר %.1f° · ", stat.ambient);
+                if (targets.size() == 1) {
+                    load();
+                } else if (fresh.state.power) {
+                    st.power = true;
+                }
+                refresh();
+                renderAcs();
+            });
+        }
     }
 
     /** שומר את המצב המוצג לכל המזגנים שבשליטה. */
@@ -336,7 +371,7 @@ public class MainActivity extends Activity {
             for (AcConfig t : targets) { if (sb.length() > 0) sb.append(" + "); sb.append(t.name); }
             members = sb + " · ";
         }
-        offHint.setText(members + (st.power ? AcState.MODE_NAMES[st.mode]
+        offHint.setText(ambientText + members + (st.power ? AcState.MODE_NAMES[st.mode]
                 : (group != null ? "כבויים" : "המזגן כבוי") + " · השינויים יישלחו בהדלקה"));
         modeSeg.select(st.mode);
         fanSeg.select(st.fan);
@@ -379,7 +414,7 @@ public class MainActivity extends Activity {
         Multi m = new Multi(ts.size(), "✓ נשלח" + (ts.size() > 1 ? " ל-" + ts.size() + " מזגנים" : "") + ": " + what);
         for (AcConfig t : ts) {
             boolean on = turnOn || needOn.remove(t.id);
-            Remote.send(t, Remote.irForState(t, snap, on), err -> m.done(t, err));
+            Remote.apply(t, snap, on, err -> m.done(t, err));
         }
     }
 
@@ -388,7 +423,7 @@ public class MainActivity extends Activity {
         status("שולח…");
         List<AcConfig> ts = new ArrayList<>(targets);
         Multi m = new Multi(ts.size(), "✓ " + okMsg + (ts.size() > 1 ? " (" + ts.size() + " מזגנים)" : ""));
-        for (AcConfig t : ts) Remote.send(t, Remote.irForShort(t, cmd), err -> m.done(t, err));
+        for (AcConfig t : ts) Remote.command(t, cmd, err -> m.done(t, err));
     }
 
     /** מאחד את תוצאות השליחה לכמה מזגנים לשורת סטטוס אחת. */
