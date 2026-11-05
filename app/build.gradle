@@ -12,8 +12,9 @@ android {
         minSdk 26
         targetSdk 34
         // מספר הגרסה עולה אוטומטית בכל בנייה ב-GitHub
-        versionCode (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
-        versionName "1.0." + (System.getenv('GITHUB_RUN_NUMBER') ?: '0')
+        def runNumber = (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+        versionCode = runNumber
+        versionName = "1.0." + runNumber
     }
 
     // חתימה קבועה - כדי שעדכונים יותקנו מעל הגרסה הקודמת בלי למחוק את האפליקציה
