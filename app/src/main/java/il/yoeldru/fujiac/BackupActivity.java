@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 22:46 (שעון ישראל)
+// נכתב: 2026-11-05 22:46 (שעון ישראל) · עודכן: 2026-11-05 23:22 - אפשרות לכלול חשבון ענן
 // גיבוי והעברת הגדרות: שליחה בוואטסאפ (קוד טקסט), שמירה/פתיחה של קובץ, הדבקת קוד.
 // מקבל גם קוד/קובץ ששותף אל האפליקציה (Share → שלט פוג'יטסו).
 package il.yoeldru.fujiac;
@@ -30,7 +30,7 @@ import java.util.Locale;
 public class BackupActivity extends Activity {
     private static final int REQ_SAVE = 11, REQ_OPEN = 12;
     private Store store;
-    private CheckBox withSched;
+    private CheckBox withSched, withCloud;
     private TextView msg;
 
     @Override
@@ -52,6 +52,11 @@ public class BackupActivity extends Activity {
         withSched.setTextColor(Ui.TEXT);
         withSched.setChecked(false);
         ex.addView(withSched);
+        withCloud = new CheckBox(this);
+        withCloud.setText("כולל פרטי חשבון הענן (טורנדו) – רק למי שסומכים עליו, הסיסמה עוברת בהודעה");
+        withCloud.setTextColor(Ui.TEXT);
+        withCloud.setChecked(false);
+        if (store.hasCloudAccount()) ex.addView(withCloud);
         Ui.spacer(ex, 8);
         Button share = Ui.primary(this, "📤 שלח לטלפון אחר (וואטסאפ וכו')");
         share.setOnClickListener(v -> share());
@@ -100,7 +105,7 @@ public class BackupActivity extends Activity {
 
     // ---------- יצוא ----------
 
-    private String code() { return store.exportCode(withSched.isChecked()); }
+    private String code() { return store.exportCode(withSched.isChecked(), withCloud.isChecked()); }
 
     private void share() {
         String text = "הגדרות לאפליקציית \"שלט פוג'יטסו\" 🌬️\n"
@@ -217,7 +222,7 @@ public class BackupActivity extends Activity {
         Uri u = data.getData();
         if (req == REQ_SAVE) {
             try (OutputStream out = getContentResolver().openOutputStream(u)) {
-                out.write(store.exportAll(withSched.isChecked()).toString(2).getBytes("UTF-8"));
+                out.write(store.exportAll(withSched.isChecked(), withCloud.isChecked()).toString(2).getBytes("UTF-8"));
                 msg.setText("✓ נשמר לקובץ");
             } catch (Exception e) {
                 msg.setText("✗ השמירה נכשלה: " + e.getMessage());

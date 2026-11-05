@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 22:46 - כמה מזגנים, קבוצות, יצוא/יבוא הגדרות
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 23:22 - כמה מזגנים, קבוצות, יצוא/יבוא, חשבון ענן
 // שמירת הגדרות ונתונים מקומית בטלפון (SharedPreferences + JSON).
 package il.yoeldru.fujiac;
 
@@ -22,6 +22,7 @@ public class Store {
 
     public Store(Context c) {
         p = c.getApplicationContext().getSharedPreferences("fujiac", Context.MODE_PRIVATE);
+        Remote.appContext = c.getApplicationContext();
         if (!p.contains(ACS)) {
             // יצירת המזגן הראשון
             AcConfig a = new AcConfig();
@@ -152,11 +153,29 @@ public class Store {
     }
     public void saveList(String key, JSONArray a) { p.edit().putString(key, a.toString()).apply(); }
 
+    // ----- חשבון ענן (טורנדו / AC Freedom) -----
+    public String cloudUser() { return p.getString("cloud_user", ""); }
+    public String cloudPass() { return p.getString("cloud_pass", ""); }
+    public int cloudProfile() { return p.getInt("cloud_profile", 0); }
+    public String cloudServer() { return p.getString("cloud_server", ""); }
+    public boolean hasCloudAccount() { return !cloudUser().isEmpty() && !cloudPass().isEmpty(); }
+
+    public void saveCloud(String user, String pass, int profile, String server) {
+        p.edit().putString("cloud_user", user).putString("cloud_pass", pass)
+                .putInt("cloud_profile", profile).putString("cloud_server", server == null ? "" : server).apply();
+    }
+
+    public void clearCloud() {
+        p.edit().remove("cloud_user").remove("cloud_pass").remove("cloud_server").apply();
+    }
+
     // ----- יצוא / יבוא -----
     public static final String EXPORT_PREFIX = "FUJIAC1:";
 
     /** כל ההגדרות כ-JSON: מזגנים (כולל השלט של כל אחד), קבוצות, מועדפים, כפתורים נלמדים ותזמונים. */
-    public JSONObject exportAll(boolean withSchedules) {
+    public JSONObject exportAll(boolean withSchedules) { return exportAll(withSchedules, false); }
+
+    public JSONObject exportAll(boolean withSchedules, boolean withCloud) {
         JSONObject o = new JSONObject();
         try {
             o.put("app", "fujiac");
@@ -167,14 +186,20 @@ public class Store {
             o.put("learned", list(LEARNED));
             if (withSchedules) o.put("schedules", list(SCHEDULES));
             o.put("next_id", p.getInt("next_id", 1));
+            if (withCloud && hasCloudAccount()) {
+                JSONObject c = new JSONObject();
+                c.put("user", cloudUser()); c.put("pass", cloudPass());
+                c.put("profile", cloudProfile()); c.put("server", cloudServer());
+                o.put("cloud", c);
+            }
         } catch (Exception ignored) {}
         return o;
     }
 
     /** קוד טקסט קצר לשליחה בוואטסאפ: קידומת + JSON מכווץ ב-Base64. */
-    public String exportCode(boolean withSchedules) {
+    public String exportCode(boolean withSchedules, boolean withCloud) {
         try {
-            byte[] raw = exportAll(withSchedules).toString().getBytes("UTF-8");
+            byte[] raw = exportAll(withSchedules, withCloud).toString().getBytes("UTF-8");
             java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
             try (java.util.zip.GZIPOutputStream gz = new java.util.zip.GZIPOutputStream(bos)) { gz.write(raw); }
             return EXPORT_PREFIX + android.util.Base64.encodeToString(bos.toByteArray(), android.util.Base64.NO_WRAP);
@@ -215,6 +240,9 @@ public class Store {
         }
         e.putInt("next_id", Math.max(p.getInt("next_id", 1), o.optInt("next_id", 1)) + 1);
         e.putInt("current_group", 0);
+        JSONObject c = o.optJSONObject("cloud");
+        if (c != null) e.putString("cloud_user", c.optString("user")).putString("cloud_pass", c.optString("pass"))
+                .putInt("cloud_profile", c.optInt("profile")).putString("cloud_server", c.optString("server"));
         if (acs != null && acs.length() > 0) e.putInt("current_ac", acs.optJSONObject(0).optInt("id"));
         e.apply();
     }

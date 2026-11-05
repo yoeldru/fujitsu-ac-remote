@@ -28,6 +28,7 @@ public final class AuxAc {
         public int power, vertical = V_AUTO, horizontal = H_FIXED, mode = MODE_COOL, fan = FAN_AUTO;
         public int sleep, display, mildew, health, mute, turbo, clean;
         public Double ambient;   // טמפרטורת החדר, אם ידועה
+        public boolean viaCloud; // נקרא דרך הענן
 
         public Status copy() {
             Status s = new Status();

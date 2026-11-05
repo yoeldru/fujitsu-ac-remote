@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 23:09 - מזגני Wi-Fi (טורנדו/AUX)
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 23:22 - מזגני Wi-Fi (טורנדו/AUX) מקומי וענן
 // הגדרות: בחירת מזגן, איתור ה-RM4 שלו ברשת, דגם וקוד שלט, בדיקה, הוספה ומחיקה של מזגנים.
 package il.yoeldru.fujiac;
 
@@ -80,6 +80,9 @@ public class SettingsActivity extends Activity {
         Ui.addWeighted(addRow, addWifi, 3);
         acs.addView(addRow);
         root.addView(acs);
+
+        // --- חשבון ענן ---
+        root.addView(cloudCard());
 
         // --- קבוצות ---
         if (all.size() > 1) {
@@ -275,6 +278,12 @@ public class SettingsActivity extends Activity {
     }
 
     private void showDevice() {
+        if (ac.isWifi()) {
+            String local = ac.hasLocal() ? "🏠 מקומי: " + ac.host + "\nMAC: " + ac.device().macString() : "🏠 מקומי: לא מחובר";
+            String cl = ac.hasCloud() ? "☁️ ענן: מקושר" : "☁️ ענן: לא מקושר" + (store.hasCloudAccount() ? " (לחץ \"רענן מזגנים מהענן\")" : "");
+            devInfo.setText(local + "\n" + cl);
+            return;
+        }
         devInfo.setText(!ac.hasDevice() ? "לא הוגדר עדיין"
                 : "✓ " + (ac.devName.isEmpty() ? "RM4" : ac.devName) + "\nIP: " + ac.host
                 + "\nMAC: " + ac.device().macString() + String.format("\nסוג: 0x%04X", ac.devtype));
@@ -329,6 +338,137 @@ public class SettingsActivity extends Activity {
         msg("נמצאו " + found.size() + " שלטים – בחר את זה של " + ac.name);
         new AlertDialog.Builder(this).setTitle("איזה שלט שייך ל" + ac.name + "?")
                 .setItems(names, (d, w) -> choose(found.get(w))).show();
+    }
+
+    // ---------- חשבון ענן ----------
+
+    private LinearLayout cloudCard() {
+        LinearLayout c = Ui.card(this);
+        c.addView(Ui.label(this, "☁️ חשבון ענן – טורנדו (שליטה גם מחוץ לבית)"));
+        if (store.hasCloudAccount()) {
+            c.addView(Ui.text(this, "מחובר כ: " + store.cloudUser(), 14.5f, Ui.TEXT, false));
+            Ui.spacer(c, 8);
+            LinearLayout r = Ui.row(this);
+            Button sync = Ui.primary(this, "🔄 רענן מזגנים מהענן");
+            sync.setOnClickListener(v -> cloudConnect(store.cloudUser(), store.cloudPass()));
+            Button out = Ui.soft(this, "התנתק");
+            out.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("להתנתק מהענן?")
+                    .setMessage("מזגנים שמחוברים גם מקומית ימשיכו לעבוד בבית.")
+                    .setPositiveButton("התנתק", (d, w) -> {
+                        store.clearCloud();
+                        Remote.resetCloud();
+                        render();
+                    }).setNegativeButton("ביטול", null).show());
+            Ui.addWeighted(r, sync, 3);
+            Ui.addWeighted(r, out, 3);
+            c.addView(r);
+            return c;
+        }
+        EditText user = new EditText(this);
+        user.setHint("אימייל או טלפון של אפליקציית Tornado WIFI 3");
+        user.setTextColor(Ui.TEXT);
+        user.setHintTextColor(Ui.MUTED);
+        user.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        c.addView(user);
+        EditText pass = new EditText(this);
+        pass.setHint("סיסמה");
+        pass.setTextColor(Ui.TEXT);
+        pass.setHintTextColor(Ui.MUTED);
+        pass.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        c.addView(pass);
+        Ui.spacer(c, 8);
+        Button go = Ui.primary(this, "התחבר ומצא את המזגנים");
+        go.setOnClickListener(v -> {
+            String u = user.getText().toString().trim(), p = pass.getText().toString();
+            if (u.isEmpty() || p.isEmpty()) { msg("✗ הזן שם משתמש וסיסמה"); return; }
+            cloudConnect(u, p);
+        });
+        c.addView(go, new LinearLayout.LayoutParams(-1, -2));
+        Ui.spacer(c, 6);
+        c.addView(Ui.text(this, "בבית האפליקציה מדברת ישירות עם המזגן; מחוץ לבית – דרך הענן. "
+                + "הסיסמה נשמרת רק בטלפון הזה.", 12.5f, Ui.MUTED, false));
+        return c;
+    }
+
+    private void cloudConnect(String user, String pass) {
+        msg("מתחבר לענן…");
+        Remote.NET.execute(() -> {
+            String err = null;
+            List<il.yoeldru.fujiac.core.AuxCloud.Device> devs = null;
+            String server = "";
+            try {
+                il.yoeldru.fujiac.core.AuxCloud cl = new il.yoeldru.fujiac.core.AuxCloud(
+                        il.yoeldru.fujiac.core.AuxCloud.AC_FREEDOM, store.cloudServer(), user, pass);
+                cl.login();
+                server = cl.server();
+                devs = cl.discover();
+            } catch (Exception e) {
+                err = e.getMessage();
+            }
+            final String fe = err, fs = server;
+            final List<il.yoeldru.fujiac.core.AuxCloud.Device> fd = devs;
+            main.post(() -> {
+                if (fe != null) {
+                    msg("✗ " + fe);
+                    new AlertDialog.Builder(this).setTitle("ההתחברות לענן נכשלה")
+                            .setMessage(fe + "\n\nבדוק את שם המשתמש והסיסמה (כמו באפליקציית Tornado WIFI 3). "
+                                    + "אם הם נכונים – ייתכן שאפליקציית טורנדו משתמשת בשרת נפרד; ספר לי ואתאים.")
+                            .setPositiveButton("אישור", null).show();
+                    return;
+                }
+                store.saveCloud(user, pass, 0, fs);
+                Remote.resetCloud();
+                onCloudDevices(fd);
+            });
+        });
+    }
+
+    private void onCloudDevices(List<il.yoeldru.fujiac.core.AuxCloud.Device> devs) {
+        int linked = 0;
+        List<il.yoeldru.fujiac.core.AuxCloud.Device> fresh = new ArrayList<>();
+        for (il.yoeldru.fujiac.core.AuxCloud.Device d : devs) {
+            boolean matched = false;
+            for (AcConfig a : store.acs()) {
+                if (!a.isWifi()) continue;
+                if (d.did.equals(a.cloudDid) || (!a.macDisplayHex().isEmpty() && a.macDisplayHex().equals(d.macNorm()))) {
+                    a.cloudDid = d.did;
+                    store.saveAc(a);
+                    matched = true;
+                    linked++;
+                }
+            }
+            if (!matched) fresh.add(d);
+        }
+        final int fLinked = linked;
+        if (fresh.isEmpty()) {
+            render();
+            msg("✓ מחובר לענן. " + (devs.isEmpty() ? "לא נמצאו מזגנים בחשבון." : fLinked + " מזגנים מקושרים לענן."));
+            return;
+        }
+        String[] names = new String[fresh.size()];
+        boolean[] checked = new boolean[fresh.size()];
+        for (int i = 0; i < names.length; i++) { names[i] = fresh.get(i).name + " · " + fresh.get(i).mac; checked[i] = true; }
+        new AlertDialog.Builder(this).setTitle("נמצאו " + fresh.size() + " מזגנים בענן")
+                .setMultiChoiceItems(names, checked, (d, w, c) -> checked[w] = c)
+                .setPositiveButton("הוסף", (d, w) -> {
+                    int last = 0;
+                    for (int i = 0; i < checked.length; i++) {
+                        if (!checked[i]) continue;
+                        AcConfig a = new AcConfig();
+                        a.id = store.nextId();
+                        a.kind = "aux";
+                        a.name = fresh.get(i).name.isEmpty() ? "מזגן" : fresh.get(i).name;
+                        a.cloudDid = fresh.get(i).did;
+                        a.devtype = il.yoeldru.fujiac.core.AuxAc.DEVTYPE;
+                        store.saveAc(a);
+                        last = a.id;
+                    }
+                    if (last != 0) store.setCurrent(last);
+                    render();
+                    msg("✓ נוספו מזגנים מהענן" + (fLinked > 0 ? " · " + fLinked + " קושרו למזגנים קיימים" : "")
+                            + ". כדי לשלוט גם בלי אינטרנט – לחץ על המזגן ← \"חפש ברשת הביתית\".");
+                })
+                .setNegativeButton("ביטול", (d, w) -> render()).show();
     }
 
     // ---------- הוספת מזגני Wi-Fi ----------
