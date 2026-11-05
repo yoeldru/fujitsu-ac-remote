@@ -340,7 +340,6 @@ public class MainActivity extends Activity {
                 for (AcConfig x : targets) if (x.id == acId) stillHere = true;
                 if (!stillHere || pending) return;
                 if (stat.ambient != null) ambientText = String.format(java.util.Locale.US, "🌡️ בחדר %.1f° · ", stat.ambient);
-                if (stat.viaCloud) ambientText = "☁️ " + ambientText;
                 if (targets.size() == 1) {
                     load();
                 } else if (fresh.state.power) {

@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 10:30 (שעון ישראל) · עודכן: 2026-11-05 23:22 - סוג מזגן: IR או Wi-Fi, קישור לענן
+// נכתב: 2026-11-05 10:30 (שעון ישראל) · עודכן: 2026-11-05 23:09 - סוג מזגן: IR או Wi-Fi
 // הגדרות של מזגן אחד: שם, השלט החכם (RM4) שלו, דגם שלט, קוד שלט (A-D) והמצב האחרון.
 package il.yoeldru.fujiac;
 
@@ -16,8 +16,6 @@ public class AcConfig {
     public String mac = "";
     public int devtype = 0x51DA;
     public String devName = "";
-    /** מזהה המזגן בענן (endpointId) - אם מקושר, שולטים דרכו כשאין חיבור מקומי. */
-    public String cloudDid = "";
     public int model = FujitsuIr.MODEL_ARRAH2E;
     public boolean alwaysPower = false;
     /** קוד השלט של פוג'יטסו: 0=A (ברירת מחדל), 1=B, 2=C, 3=D. */
@@ -28,22 +26,10 @@ public class AcConfig {
 
     public boolean isWifi() { return "aux".equals(kind); }
 
-    public boolean hasDevice() { return (host != null && !host.isEmpty()) || hasCloud(); }
-
-    public boolean hasLocal() { return host != null && !host.isEmpty(); }
-
-    public boolean hasCloud() { return cloudDid != null && !cloudDid.isEmpty(); }
-
-    /** MAC בסדר תצוגה (hex קטן) - להשוואה מול הענן. */
-    public String macDisplayHex() {
-        if (mac == null || mac.length() != 12) return "";
-        StringBuilder sb = new StringBuilder();
-        for (int i = 10; i >= 0; i -= 2) sb.append(mac, i, i + 2);
-        return sb.toString().toLowerCase();
-    }
+    public boolean hasDevice() { return host != null && !host.isEmpty(); }
 
     public BroadlinkDevice device() {
-        if (!hasLocal()) return null;
+        if (!hasDevice()) return null;
         BroadlinkDevice d = new BroadlinkDevice(host, FujitsuIr.unhex(mac), devtype);
         d.name = devName;
         return d;
@@ -61,7 +47,7 @@ public class AcConfig {
         try {
             o.put("id", id); o.put("kind", kind); o.put("name", name); o.put("host", host); o.put("mac", mac);
             o.put("devtype", devtype); o.put("devName", devName); o.put("model", model);
-            o.put("alwaysPower", alwaysPower); o.put("remoteId", remoteId); o.put("cloudDid", cloudDid);
+            o.put("alwaysPower", alwaysPower); o.put("remoteId", remoteId);
             o.put("state", state.toJson());
         } catch (Exception ignored) {}
         return o;
@@ -80,7 +66,6 @@ public class AcConfig {
         a.model = o.optInt("model", FujitsuIr.MODEL_ARRAH2E);
         a.alwaysPower = o.optBoolean("alwaysPower", false);
         a.remoteId = o.optInt("remoteId", 0);
-        a.cloudDid = o.optString("cloudDid", "");
         a.state = AcState.fromJson(o.optJSONObject("state"));
         return a;
     }
