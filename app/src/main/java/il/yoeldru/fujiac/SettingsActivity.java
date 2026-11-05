@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 12:42 - הגדרות לכל מזגן, קבוצות, בדיקת עדכונים
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 15:04 - אשף הגדרת שלט חדש
 // הגדרות: בחירת מזגן, איתור ה-RM4 שלו ברשת, דגם וקוד שלט, בדיקה, הוספה ומחיקה של מזגנים.
 package il.yoeldru.fujiac;
 
@@ -36,7 +36,12 @@ public class SettingsActivity extends Activity {
         super.onCreate(b);
         store = new Store(this);
         root = Ui.screen(this);
-        render();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        render();  // מתעדכן גם אחרי חזרה מאשף הגדרת שלט חדש
     }
 
     private void render() {
@@ -123,6 +128,10 @@ public class SettingsActivity extends Activity {
         find.setOnClickListener(v -> discover(null));
         dev.addView(find, new LinearLayout.LayoutParams(-1, -2));
         Ui.spacer(dev, 8);
+        Button wizard = Ui.soft(this, "🆕 הגדרת שלט חדש / אחרי ריסט (בלי Broadlink)");
+        wizard.setOnClickListener(v -> startActivity(new android.content.Intent(this, SetupDeviceActivity.class)));
+        dev.addView(wizard, new LinearLayout.LayoutParams(-1, -2));
+        Ui.spacer(dev, 8);
         LinearLayout ipRow = Ui.row(this);
         EditText ip = new EditText(this);
         ip.setHint("או הזן IP, למשל 192.168.1.50");
@@ -136,7 +145,7 @@ public class SettingsActivity extends Activity {
         dev.addView(ipRow);
         Ui.spacer(dev, 8);
         dev.addView(Ui.text(this,
-                "חשוב: באפליקציית Broadlink ← המכשיר ← הגדרות, ודא ש\"נעילת מכשיר\" (Lock device) כבויה. "
+                "שלט שחובר דרך אפליקציית Broadlink: ודא שם ש\"נעילת מכשיר\" (Lock device) כבויה. "
                         + "הטלפון צריך להיות על אותה רשת Wi-Fi. מומלץ לקבע לכל שלט כתובת IP בנתב.",
                 12.5f, Ui.MUTED, false));
         root.addView(dev);

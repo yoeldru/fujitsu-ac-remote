@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל)
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 15:04 - הגדרת שלט חדש (מצב AP)
 // תקשורת מקומית (UDP, פורט 80) עם Broadlink RM4 mini ברשת הביתית - ללא ענן.
 // מימוש הפרוטוקול לפי python-broadlink: גילוי, אימות (AES-128-CBC), שליחת IR ולימוד קודים.
 package il.yoeldru.fujiac.core;
@@ -117,6 +117,36 @@ public class BroadlinkDevice {
             }
         }
         return found;
+    }
+
+    // ---------- הגדרה ראשונית (מצב AP, אחרי ריסט) ----------
+
+    public static final int SEC_NONE = 0, SEC_WEP = 1, SEC_WPA1 = 2, SEC_WPA2 = 3, SEC_WPA12 = 4;
+
+    /** חבילת ההגדרה: שם רשת + סיסמה + סוג אבטחה (כמו python-broadlink setup). */
+    public static byte[] setupPacket(String ssid, String password, int security) {
+        byte[] p = new byte[0x88];
+        p[0x26] = 0x14;
+        byte[] s = ssid.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] w = password.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        if (s.length > 32 || w.length > 32) throw new IllegalArgumentException("שם רשת או סיסמה ארוכים מ-32 תווים");
+        System.arraycopy(s, 0, p, 0x44, s.length);
+        System.arraycopy(w, 0, p, 0x64, w.length);
+        p[0x84] = (byte) s.length;
+        p[0x85] = (byte) w.length;
+        p[0x86] = (byte) security;
+        putLE(p, 0x20, checksum(p, 0, p.length), 2);
+        return p;
+    }
+
+    /** שולח את חבילת ההגדרה כ-broadcast דרך socket נתון (שכבר קשור לרשת של השלט). */
+    public static void sendSetup(DatagramSocket sock, byte[] packet) throws IOException {
+        sock.setBroadcast(true);
+        InetAddress bc = InetAddress.getByName("255.255.255.255");
+        for (int i = 0; i < 3; i++) {
+            sock.send(new DatagramPacket(packet, packet.length, bc, PORT));
+            try { Thread.sleep(400); } catch (InterruptedException ignored) {}
+        }
     }
 
     // ---------- הצפנה ----------
