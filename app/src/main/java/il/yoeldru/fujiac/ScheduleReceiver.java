@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 23:09 - תזמון למזגן או לקבוצה (IR ו-Wi-Fi)
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-08 00:35 - חלק הדלקה / חלק כיבוי באותו תזמון
 // מופעל בזמן התזמון: שולח את הפקודה למזגן וקובע את המועד הבא.
 // גם מופעל אחרי הפעלה מחדש של הטלפון כדי לשחזר את התזמונים.
 package il.yoeldru.fujiac;
@@ -20,12 +20,16 @@ public class ScheduleReceiver extends BroadcastReceiver {
             return;
         }
         int id = intent.getIntExtra("id", -1);
+        String part = intent.getStringExtra("part");
         Store store = new Store(c);
         JSONArray a = store.list(Store.SCHEDULES);
         JSONObject s = null;
         for (int i = 0; i < a.length(); i++)
             if (a.optJSONObject(i).optInt("id") == id) s = a.optJSONObject(i);
         if (s == null || !s.optBoolean("enabled", true)) return;
+        Scheduler.normalize(s);
+        if (part == null) part = Scheduler.partOn(s, Scheduler.ON) ? Scheduler.ON : Scheduler.OFF;  // התראה ישנה
+        final boolean turnOn = Scheduler.ON.equals(part);
 
         // יעד: קבוצה (כל החברים) או מזגן בודד
         java.util.List<AcConfig> targets = new java.util.ArrayList<>();
@@ -38,7 +42,7 @@ public class ScheduleReceiver extends BroadcastReceiver {
         java.util.List<AcState> states = new java.util.ArrayList<>();
         for (AcConfig ac : targets) {
             AcState st = ac.state;
-            if (s.optString("action").equals("off")) {
+            if (!turnOn) {
                 st.power = false;
             } else {
                 st.power = true;
@@ -54,7 +58,12 @@ public class ScheduleReceiver extends BroadcastReceiver {
 
         // תזמון חד-פעמי מתבטל; קבוע נקבע מחדש
         try {
-            if (s.optInt("days") == 0) s.put("enabled", false);
+            if (s.optInt("days") == 0) {
+                s.put("done_" + part, true);
+                boolean allDone = (!Scheduler.partOn(s, Scheduler.ON) || s.optBoolean("done_on"))
+                        && (!Scheduler.partOn(s, Scheduler.OFF) || s.optBoolean("done_off"));
+                if (allDone) s.put("enabled", false);
+            }
             store.saveList(Store.SCHEDULES, a);
         } catch (Exception ignored) {}
         Scheduler.apply(c, s);

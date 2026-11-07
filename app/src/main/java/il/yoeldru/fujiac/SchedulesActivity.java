@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 12:42 - תזמונים למזגן או לקבוצה
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-08 00:35 - תזמון אחד עם הדלקה ו/או כיבוי
 // מסך תזמונים: הדלקה/כיבוי בשעה קבועה בימים נבחרים, וטיימר כיבוי מהיר.
 package il.yoeldru.fujiac;
 
@@ -15,7 +15,6 @@ import android.widget.LinearLayout;
 import android.widget.NumberPicker;
 import android.widget.Switch;
 import android.widget.TextView;
-import android.widget.TimePicker;
 import android.widget.Toast;
 
 import org.json.JSONArray;
@@ -85,10 +84,11 @@ public class SchedulesActivity extends Activity {
             JSONObject s = new JSONObject();
             s.put("id", store.nextId());
             s.put("enabled", true);
-            s.put("hour", c.get(Calendar.HOUR_OF_DAY));
-            s.put("minute", c.get(Calendar.MINUTE));
+            s.put("onOn", false);
+            s.put("offOn", true);
+            s.put("offHour", c.get(Calendar.HOUR_OF_DAY));
+            s.put("offMinute", c.get(Calendar.MINUTE));
             s.put("days", 0);
-            s.put("action", "off");
             s.put("timer", true);
             s.put("acId", store.current().id);
             s.put("groupId", store.currentGroup());
@@ -136,7 +136,7 @@ public class SchedulesActivity extends Activity {
             Switch sw = new Switch(this);
             sw.setChecked(s.optBoolean("enabled", true));
             sw.setOnCheckedChangeListener((v, on) -> {
-                try { s.put("enabled", on); } catch (Exception ignored) {}
+                try { s.put("enabled", on); s.remove("done_on"); s.remove("done_off"); } catch (Exception ignored) {}
                 save(s);
             });
             r.addView(sw);
@@ -172,13 +172,14 @@ public class SchedulesActivity extends Activity {
                 s = new JSONObject();
                 s.put("id", store.nextId());
                 s.put("enabled", true);
-                s.put("hour", 7); s.put("minute", 0);
+                s.put("onOn", true); s.put("onHour", 7); s.put("onMinute", 0);
+                s.put("offOn", false); s.put("offHour", 8); s.put("offMinute", 0);
                 s.put("days", 0x7F);
-                s.put("action", "on");
                 s.put("acId", store.current().id);
                 s.put("temp", cur.temp); s.put("mode", cur.mode); s.put("fan", cur.fan); s.put("swing", cur.swing);
             }
         } catch (Exception e) { return; }
+        Scheduler.normalize(s);
 
         LinearLayout v = new LinearLayout(this);
         v.setOrientation(LinearLayout.VERTICAL);
@@ -219,11 +220,55 @@ public class SchedulesActivity extends Activity {
             Ui.spacer(v, 8);
         }
 
-        TimePicker tp = new TimePicker(this);
-        tp.setIs24HourView(true);
-        tp.setHour(s.optInt("hour"));
-        tp.setMinute(s.optInt("minute"));
-        v.addView(tp);
+        // שעת הדלקה ושעת כיבוי - כל אחת אפשר לסמן או לא
+        final boolean[] onOn = {Scheduler.partOn(s, Scheduler.ON)}, offOn = {Scheduler.partOn(s, Scheduler.OFF)};
+        final int[] onT = {Scheduler.hour(s, Scheduler.ON), Scheduler.minute(s, Scheduler.ON)};
+        final int[] offT = {Scheduler.hour(s, Scheduler.OFF), Scheduler.minute(s, Scheduler.OFF)};
+        LinearLayout onOpts = new LinearLayout(this);
+        onOpts.setOrientation(LinearLayout.VERTICAL);
+
+        LinearLayout onRow = Ui.row(this);
+        android.widget.CheckBox onCb = new android.widget.CheckBox(this);
+        onCb.setText("🟢 הדלקה בשעה");
+        onCb.setTextColor(Ui.TEXT);
+        onCb.setTextSize(16);
+        onCb.setChecked(onOn[0]);
+        Button onTime = Ui.soft(this, fmt(onT));
+        onTime.setTextSize(18);
+        onTime.setOnClickListener(x -> pickTime(onT, onTime));
+        onRow.addView(onCb, new LinearLayout.LayoutParams(0, -2, 1f));
+        onRow.addView(onTime);
+        v.addView(onRow);
+
+        LinearLayout offRow = Ui.row(this);
+        android.widget.CheckBox offCb = new android.widget.CheckBox(this);
+        offCb.setText("🔴 כיבוי בשעה");
+        offCb.setTextColor(Ui.TEXT);
+        offCb.setTextSize(16);
+        offCb.setChecked(offOn[0]);
+        Button offTime = Ui.soft(this, fmt(offT));
+        offTime.setTextSize(18);
+        offTime.setOnClickListener(x -> pickTime(offT, offTime));
+        offRow.addView(offCb, new LinearLayout.LayoutParams(0, -2, 1f));
+        offRow.addView(offTime);
+        LinearLayout.LayoutParams orl = new LinearLayout.LayoutParams(-1, -2);
+        orl.topMargin = Ui.dp(this, 6);
+        v.addView(offRow, orl);
+
+        onCb.setOnCheckedChangeListener((b2, c2) -> {
+            onOn[0] = c2;
+            onTime.setEnabled(c2);
+            onTime.setAlpha(c2 ? 1f : 0.4f);
+            onOpts.setVisibility(c2 ? android.view.View.VISIBLE : android.view.View.GONE);
+        });
+        offCb.setOnCheckedChangeListener((b2, c2) -> {
+            offOn[0] = c2;
+            offTime.setEnabled(c2);
+            offTime.setAlpha(c2 ? 1f : 0.4f);
+        });
+        onTime.setEnabled(onOn[0]); onTime.setAlpha(onOn[0] ? 1f : 0.4f);
+        offTime.setEnabled(offOn[0]); offTime.setAlpha(offOn[0] ? 1f : 0.4f);
+        Ui.spacer(v, 10);
 
         v.addView(Ui.label(this, "ימים (בלי בחירה = פעם אחת)"));
         final int[] days = {s.optInt("days")};
@@ -240,19 +285,8 @@ public class SchedulesActivity extends Activity {
         v.addView(dr);
         Ui.spacer(v, 10);
 
-        v.addView(Ui.label(this, "פעולה"));
-        final String[] action = {s.optString("action", "on")};
-        LinearLayout onOpts = new LinearLayout(this);
-        onOpts.setOrientation(LinearLayout.VERTICAL);
-        Ui.Segmented act = new Ui.Segmented(this, new String[]{"הדלקה", "כיבוי"}, i -> {
-            action[0] = i == 0 ? "on" : "off";
-            onOpts.setVisibility(i == 0 ? android.view.View.VISIBLE : android.view.View.GONE);
-        });
-        act.select(action[0].equals("off") ? 1 : 0);
-        onOpts.setVisibility(action[0].equals("off") ? android.view.View.GONE : android.view.View.VISIBLE);
-        v.addView(act.view);
-        Ui.spacer(v, 10);
-
+        onOpts.setVisibility(onOn[0] ? android.view.View.VISIBLE : android.view.View.GONE);
+        onOpts.addView(Ui.label(this, "הגדרות ההדלקה"));
         onOpts.addView(Ui.label(this, "טמפרטורה"));
         NumberPicker np = new NumberPicker(this);
         np.setMinValue(16); np.setMaxValue(30);
@@ -282,11 +316,15 @@ public class SchedulesActivity extends Activity {
                 .setTitle(existing == null ? "תזמון חדש" : "עריכת תזמון")
                 .setView(sv)
                 .setPositiveButton("שמור", (d, w) -> {
+                    if (!onOn[0] && !offOn[0]) {
+                        Toast.makeText(this, "סמן הדלקה, כיבוי או שניהם", Toast.LENGTH_LONG).show();
+                        return;
+                    }
                     try {
-                        s.put("hour", tp.getHour());
-                        s.put("minute", tp.getMinute());
+                        s.put("onOn", onOn[0]); s.put("onHour", onT[0]); s.put("onMinute", onT[1]);
+                        s.put("offOn", offOn[0]); s.put("offHour", offT[0]); s.put("offMinute", offT[1]);
+                        s.remove("done_on"); s.remove("done_off");
                         s.put("days", days[0]);
-                        s.put("action", action[0]);
                         s.put("temp", np.getValue());
                         s.put("mode", mode[0]);
                         s.put("fan", fan[0]);
@@ -299,6 +337,13 @@ public class SchedulesActivity extends Activity {
                 })
                 .setNegativeButton("ביטול", null)
                 .show();
+    }
+
+    private static String fmt(int[] t) { return String.format("%02d:%02d", t[0], t[1]); }
+
+    private void pickTime(int[] t, Button b) {
+        new android.app.TimePickerDialog(this, (tp, h, m) -> { t[0] = h; t[1] = m; b.setText(fmt(t)); },
+                t[0], t[1], true).show();
     }
 
     private void paintDays(Button[] db, int days) {
