@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 23:09 - קבוצות, מזגני Wi-Fi (טורנדו) עם קריאת מצב אמיתי
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-10 19:39 - כפתורי הדלקה וכיבוי קבועים, כיבוי מהיר בלחיצה ארוכה
 // המסך הראשי: הדלקה/כיבוי, טמפרטורה, מצב, מאוורר, תריסים, מועדפים.
 package il.yoeldru.fujiac;
 
@@ -41,7 +41,7 @@ public class MainActivity extends Activity {
     private TextView updateText;
     private HorizontalScrollView acScroll;
     private TextView tempView, statusView, titleView, offHint;
-    private Button powerBtn;
+    private Button powerBtn, offBtn;
     private Ui.Segmented modeSeg, fanSeg, swingSeg;
     private LinearLayout favRow;
     private final Handler h = new Handler(Looper.getMainLooper());
@@ -132,10 +132,22 @@ public class MainActivity extends Activity {
         offHint.setGravity(Gravity.CENTER);
         main.addView(offHint, new LinearLayout.LayoutParams(-1, -2));
         Ui.spacer(main, 10);
-        powerBtn = Ui.button(this, "הדלק", Ui.ON, Color.WHITE);
+        // שני כפתורים קבועים: הדלקה וכיבוי שולחים תמיד, בלי קשר למה שהאפליקציה חושבת
+        // (למשל כשמישהו הדליק מהשלט המקורי)
+        LinearLayout pr = Ui.row(this);
+        powerBtn = Ui.button(this, "⏻  הדלק", Ui.ON, Color.WHITE);
         powerBtn.setTextSize(18);
-        powerBtn.setOnClickListener(v -> togglePower());
-        main.addView(powerBtn, new LinearLayout.LayoutParams(-1, Ui.dp(this, 56)));
+        powerBtn.setOnClickListener(v -> setPower(true));
+        offBtn = Ui.button(this, "⏻  כבה", Ui.OFF, Color.WHITE);
+        offBtn.setTextSize(18);
+        offBtn.setOnClickListener(v -> setPower(false));
+        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(0, Ui.dp(this, 56), 1f);
+        plp.setMarginEnd(Ui.dp(this, 5));
+        pr.addView(powerBtn, plp);
+        LinearLayout.LayoutParams olp = new LinearLayout.LayoutParams(0, Ui.dp(this, 56), 1f);
+        olp.setMarginStart(Ui.dp(this, 5));
+        pr.addView(offBtn, olp);
+        main.addView(pr);
         col.addView(main);
 
         // מצב
@@ -263,6 +275,7 @@ public class MainActivity extends Activity {
             boolean sel = group == null && a.id == ac.id;
             Button b = chip((a.state.power ? "🟢 " : "⚪ ") + a.name, sel);
             b.setOnClickListener(v -> switchTo(a.id));
+            b.setOnLongClickListener(v -> { quickOff(a); return true; });
             addChip(b);
         }
         if (all.size() > 1) {
@@ -363,8 +376,11 @@ public class MainActivity extends Activity {
     private void refresh() {
         tempView.setText(st.temp + "°");
         tempView.setTextColor(st.power ? (st.mode == FujitsuIr.MODE_HEAT ? Ui.HEAT : Ui.ACCENT) : Ui.MUTED);
-        powerBtn.setText(st.power ? "⏻  כבה" : "⏻  הדלק");
-        powerBtn.setBackground(Ui.round(st.power ? Ui.OFF : Ui.ON, Ui.dp(this, 16)));
+        // הכפתור שמתאים למצב הידוע מודגש, אבל שניהם תמיד פעילים
+        powerBtn.setBackground(Ui.round(Ui.ON, Ui.dp(this, 16)));
+        offBtn.setBackground(Ui.round(Ui.OFF, Ui.dp(this, 16)));
+        powerBtn.setAlpha(st.power ? 0.55f : 1f);
+        offBtn.setAlpha(st.power ? 1f : 0.55f);
         String members = "";
         if (group != null) {
             StringBuilder sb = new StringBuilder();
@@ -396,14 +412,39 @@ public class MainActivity extends Activity {
         status("…");
     }
 
-    private void togglePower() {
+    /** הדלקה או כיבוי - נשלח תמיד, גם אם האפליקציה כבר חושבת שזה המצב. */
+    private void setPower(boolean on) {
         h.removeCallbacks(pendingSend);
         pending = false;
-        st.power = !st.power;
+        st.power = on;
         saveAll();
         refresh();
         renderAcs();
-        sendState(st.power);
+        sendState(on);
+    }
+
+    /** כיבוי מהיר של מזגן אחד (לחיצה ארוכה על השם שלו), בלי לעבור אליו. */
+    private void quickOff(AcConfig a) {
+        new AlertDialog.Builder(this).setTitle("לכבות את " + a.name + "?")
+                .setPositiveButton("⏻ כבה", (d, w) -> {
+                    AcConfig fresh = store.ac(a.id);
+                    if (fresh == null) return;
+                    fresh.state.power = false;
+                    store.saveState(fresh.id, fresh.state);
+                    for (AcConfig t : targets) if (t.id == fresh.id) st.power = groupAnyOn();
+                    refresh();
+                    renderAcs();
+                    status("שולח…");
+                    Remote.apply(fresh, fresh.state, false,
+                            err -> status(err == null ? "✓ " + fresh.name + " כובה" : "✗ " + fresh.name + ": " + err));
+                })
+                .setNegativeButton("ביטול", null).show();
+    }
+
+    private boolean groupAnyOn() {
+        boolean any = false;
+        for (AcConfig t : targets) { AcConfig f = store.ac(t.id); if (f != null && f.state.power) any = true; }
+        return any;
     }
 
     private void sendState(boolean turnOn) {
