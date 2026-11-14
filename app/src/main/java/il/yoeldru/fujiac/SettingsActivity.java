@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 23:09 - מזגני Wi-Fi (טורנדו/AUX)
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-15 00:57 - חיפוש מזגני Wi-Fi מציג גם מכשירים מסוג לא מוכר
 // הגדרות: בחירת מזגן, איתור ה-RM4 שלו ברשת, דגם וקוד שלט, בדיקה, הוספה ומחיקה של מזגנים.
 package il.yoeldru.fujiac;
 
@@ -356,32 +356,38 @@ public class SettingsActivity extends Activity {
     }
 
     private void onWifiFound(List<BroadlinkDevice> found) {
-        List<BroadlinkDevice> acsFound = new ArrayList<>();
-        int others = 0;
+        // מזגנים מסוג מוכר מסומנים מראש; מכשירים חדשים מסוג אחר (שאינם השלטים שכבר משויכים) מוצגים לבחירה
+        List<BroadlinkDevice> options = new ArrayList<>();
+        List<Boolean> known = new ArrayList<>();
+        StringBuilder all = new StringBuilder();
         for (BroadlinkDevice d : found) {
-            if (d.devtype != AuxAc.DEVTYPE) { others++; continue; }
+            all.append("\n• ").append(d.name.isEmpty() ? "מכשיר" : d.name).append(" · ").append(d.host)
+                    .append(String.format(" · סוג 0x%04X", d.devtype));
             boolean exists = false;
             for (AcConfig a : store.acs()) if (a.mac.equals(FujitsuIr.hex(d.macRaw))) exists = true;
-            if (!exists) acsFound.add(d);
+            if (exists) { all.append(" (כבר באפליקציה)"); continue; }
+            options.add(d);
+            known.add(d.devtype == AuxAc.DEVTYPE);
         }
-        if (acsFound.isEmpty()) {
-            msg("✗ לא נמצאו מזגני Wi-Fi חדשים ברשת" + (others > 0 ? " (נמצאו " + others + " שלטים אחרים)" : "")
-                    + ". ודא שהמזגנים מחוברים לחשמל ושהטלפון על אותה רשת. "
-                    + "אם הם עובדים באפליקציית Tornado אבל לא נמצאים כאן – ייתכן שהדגם עובד רק דרך הענן.");
+        if (options.isEmpty()) {
+            msg("✗ לא נמצאו מכשירים חדשים ברשת." + (found.isEmpty() ? "" : "\nמה שנמצא:" + all)
+                    + "\nהמזגנים לא עונים לחיפוש מקומי – צריך צימוד מחדש דרך \"🆕 צימוד מזגן\".");
             return;
         }
-        String[] names = new String[acsFound.size()];
-        boolean[] checked = new boolean[acsFound.size()];
+        String[] names = new String[options.size()];
+        boolean[] checked = new boolean[options.size()];
         for (int i = 0; i < names.length; i++) {
-            BroadlinkDevice d = acsFound.get(i);
-            names[i] = (d.name.isEmpty() ? "מזגן" : d.name) + " · " + d.host + " · " + d.macString();
-            checked[i] = true;
+            BroadlinkDevice d = options.get(i);
+            names[i] = (known.get(i) ? "❄️ " : "❓ ") + (d.name.isEmpty() ? "מכשיר" : d.name) + " · " + d.host
+                    + (known.get(i) ? "" : String.format(" · סוג 0x%04X", d.devtype));
+            checked[i] = known.get(i);
         }
-        new AlertDialog.Builder(this).setTitle("נמצאו " + acsFound.size() + " מזגני Wi-Fi")
+        msg("נמצא ברשת:" + all);
+        new AlertDialog.Builder(this).setTitle("סמן את המזגנים (❓ = סוג לא מוכר, ייתכן שזה מזגן)")
                 .setMultiChoiceItems(names, checked, (d, w, c) -> checked[w] = c)
                 .setPositiveButton("הוסף", (d, w) -> {
                     List<BroadlinkDevice> chosen = new ArrayList<>();
-                    for (int i = 0; i < checked.length; i++) if (checked[i]) chosen.add(acsFound.get(i));
+                    for (int i = 0; i < checked.length; i++) if (checked[i]) chosen.add(options.get(i));
                     addChosen(chosen);
                 })
                 .setNegativeButton("ביטול", null).show();
