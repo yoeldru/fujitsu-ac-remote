@@ -33,6 +33,7 @@
         <activity android:name=".SettingsActivity" android:exported="false" />
         <activity android:name=".SchedulesActivity" android:exported="false" />
         <activity android:name=".LearnActivity" android:exported="false" />
+        <activity android:name=".NetScanActivity" android:exported="false" />
         <activity android:name=".BackupActivity" android:exported="true" android:launchMode="singleTop"
             android:label="יבוא הגדרות שלט פוג'יטסו">
             <!-- קבלת קוד הגדרות ששותף מוואטסאפ / קובץ JSON -->
