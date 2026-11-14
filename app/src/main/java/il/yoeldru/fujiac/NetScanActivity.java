@@ -212,7 +212,7 @@ public class NetScanActivity extends Activity {
     String guess(Host h, String myIp) {
         if (h.ip.equals(myIp)) return "📱 הטלפון הזה";
         if (h.broadlink != null) {
-            if (h.broadlink.devtype == AuxAc.DEVTYPE) return "❄️ מזגן Wi-Fi (Broadlink/AUX)";
+            if (il.yoeldru.fujiac.core.AuxAc.isAc(h.broadlink.devtype)) return "❄️ מזגן Wi-Fi (Broadlink/AUX)";
             for (AcConfig a : store.acs())
                 if (a.mac.equals(FujitsuIr.hex(h.broadlink.macRaw))) return "🎛️ " + a.name + " (שלט/מזגן באפליקציה)";
             return String.format("🎛️ מכשיר Broadlink (סוג 0x%04X)", h.broadlink.devtype);

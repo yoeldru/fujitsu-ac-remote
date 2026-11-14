@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 23:09 (שעון ישראל)
+// נכתב: 2026-11-05 23:09 (שעון ישראל) · עודכן: 2026-11-15 01:32 - זיהוי גם של מודול AUX/טורנדו חדש (0x62C0)
 // שליטה מקומית במזגני Wi-Fi מבוססי Broadlink (AUX / טורנדו / AC Freedom) - בלי ענן.
 // מבנה החבילות לפי broadlink_ac_mqtt ו-broadlinkac2mqtt (devtype 0x4E2A).
 package il.yoeldru.fujiac.core;
@@ -9,6 +9,10 @@ public final class AuxAc {
     private AuxAc() {}
 
     public static final int DEVTYPE = 0x4E2A;
+    /** מודול חדש של טורנדו/AUX (PID ...c0620000, קושחה v62018). */
+    public static final int DEVTYPE_NEW = 0x62C0;
+
+    public static boolean isAc(int devtype) { return devtype == DEVTYPE || devtype == DEVTYPE_NEW; }
 
     // ערכי מצב בפרוטוקול
     public static final int MODE_AUTO = 0, MODE_COOL = 1, MODE_DRY = 2, MODE_HEAT = 4, MODE_FAN = 6;

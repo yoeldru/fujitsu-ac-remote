@@ -258,7 +258,7 @@ public class SetupDeviceActivity extends Activity {
             for (int i = 0; i < attempts && found.isEmpty(); i++) {
                 try {
                     for (BroadlinkDevice d : BroadlinkDevice.discover(InetAddress.getByName("255.255.255.255"), 4000))
-                        if (wifiAc || d.devtype != il.yoeldru.fujiac.core.AuxAc.DEVTYPE) found.add(d);
+                        if (wifiAc || !il.yoeldru.fujiac.core.AuxAc.isAc(d.devtype)) found.add(d);
                 } catch (Exception ignored) {}
                 if (found.isEmpty()) try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
             }
@@ -283,7 +283,7 @@ public class SetupDeviceActivity extends Activity {
         if (wifiAc) {
             if (free.isEmpty()) { msg.setText("✓ המזגן כבר מחובר ונמצא באפליקציה."); return; }
             List<BroadlinkDevice> acs = new ArrayList<>(), other = new ArrayList<>();
-            for (BroadlinkDevice d : free) (d.devtype == il.yoeldru.fujiac.core.AuxAc.DEVTYPE ? acs : other).add(d);
+            for (BroadlinkDevice d : free) (il.yoeldru.fujiac.core.AuxAc.isAc(d.devtype) ? acs : other).add(d);
             if (!acs.isEmpty()) { addWifiAcs(acs); return; }
             // מכשיר חדש מסוג לא מוכר - שואלים אם זה המזגן
             String[] names = new String[other.size()];

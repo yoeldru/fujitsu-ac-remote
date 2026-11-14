@@ -325,7 +325,7 @@ public class SettingsActivity extends Activity {
         // מזגן Wi-Fi מחפש רק מזגנים; מזגן IR מחפש רק שלטים
         List<BroadlinkDevice> found = new ArrayList<>();
         for (BroadlinkDevice d : allFound)
-            if ((d.devtype == AuxAc.DEVTYPE) == ac.isWifi()) found.add(d);
+            if ((il.yoeldru.fujiac.core.AuxAc.isAc(d.devtype)) == ac.isWifi()) found.add(d);
         if (found.isEmpty()) {
             msg((ac.isWifi() ? "✗ לא נמצא המזגן" : "✗ לא נמצא שלט") + (err != null ? " (" + err + ")" : "")
                     + ". ודא שהטלפון על אותו Wi-Fi, או הזן IP ידנית (מופיע בנתב או באפליקציית Broadlink).");
@@ -418,7 +418,7 @@ public class SettingsActivity extends Activity {
             for (AcConfig a : store.acs()) if (a.mac.equals(FujitsuIr.hex(d.macRaw))) exists = true;
             if (exists) { all.append(" (כבר באפליקציה)"); continue; }
             options.add(d);
-            known.add(d.devtype == AuxAc.DEVTYPE);
+            known.add(il.yoeldru.fujiac.core.AuxAc.isAc(d.devtype));
         }
         if (options.isEmpty()) {
             msg("✗ לא נמצאו מכשירים חדשים ברשת." + (found.isEmpty() ? "" : "\nמה שנמצא:" + all)
