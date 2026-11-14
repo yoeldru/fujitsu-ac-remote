@@ -1,4 +1,4 @@
-// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-05 23:09 - הגדרת שלט חדש, פקודות גולמיות למזגני Wi-Fi (AUX/טורנדו)
+// נכתב: 2026-11-05 07:54 (שעון ישראל) · עודכן: 2026-11-15 01:02 - חיפוש מלא שאוסף תשובות לאורך כל הזמן
 // תקשורת מקומית (UDP, פורט 80) עם Broadlink RM4 mini ברשת הביתית - ללא ענן.
 // מימוש הפרוטוקול לפי python-broadlink: גילוי, אימות (AES-128-CBC), שליחת IR ולימוד קודים.
 package il.yoeldru.fujiac.core;
@@ -81,6 +81,11 @@ public class BroadlinkDevice {
 
     /** שולח הודעת hello לכתובת (broadcast או IP ספציפי) ומחזיר את המכשירים שענו. */
     public static List<BroadlinkDevice> discover(InetAddress target, int timeoutMs) throws IOException {
+        return discover(target, timeoutMs, false);
+    }
+
+    /** collectAll=true: ממשיך לשלוח ולאסוף תשובות עד סוף הזמן (מכשירים איטיים לא מתפספסים). */
+    public static List<BroadlinkDevice> discover(InetAddress target, int timeoutMs, boolean collectAll) throws IOException {
         List<BroadlinkDevice> found = new ArrayList<>();
         try (DatagramSocket sock = new DatagramSocket()) {
             sock.setBroadcast(true);
@@ -113,7 +118,7 @@ public class BroadlinkDevice {
                     d.locked = r.length > 0x7F && r[0x7F] != 0;
                     found.add(d);
                 }
-                if (!found.isEmpty()) break;
+                if (!found.isEmpty() && !collectAll) break;
             }
         }
         return found;

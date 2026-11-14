@@ -76,12 +76,14 @@ public class SettingsActivity extends Activity {
         add.setOnClickListener(v -> { store.addAc(); render(); msg("נוסף מזגן חדש – הגדר לו את השלט החכם שלו"); });
         Button addWifi = Ui.soft(this, "＋ מזגן Wi-Fi (טורנדו)");
         addWifi.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("הוספת מזגן Wi-Fi")
-                .setItems(new String[]{"🆕 צימוד מזגן (חיבור ראשון / אחרי ניתוק)", "🔍 חפש מזגן שכבר מחובר לרשת"}, (d, w) -> {
+                .setItems(new String[]{"🆕 צימוד מזגן (חיבור ראשון / אחרי ניתוק)", "🔍 חפש מזגן שכבר מחובר לרשת",
+                        "🖊️ הזן כתובת IP של המזגן (מרשימת המכשירים בנתב)"}, (d, w) -> {
                     if (w == 0) {
                         android.content.Intent i = new android.content.Intent(this, SetupDeviceActivity.class);
                         i.putExtra("wifiAc", true);
                         startActivity(i);
-                    } else addWifiAcs();
+                    } else if (w == 1) addWifiAcs();
+                    else askAcIp();
                 }).show());
         Ui.addWeighted(addRow, add, 3);
         Ui.addWeighted(addRow, addWifi, 3);
@@ -341,18 +343,60 @@ public class SettingsActivity extends Activity {
     // ---------- הוספת מזגני Wi-Fi ----------
 
     private void addWifiAcs() {
-        msg("מחפש מזגני Wi-Fi ברשת…");
+        msg("מחפש מזגני Wi-Fi ברשת… (כ-10 שניות)");
         Context app = getApplicationContext();
         Remote.NET.execute(() -> {
             List<BroadlinkDevice> found = new ArrayList<>();
-            try {
-                InetAddress bc = subnetBroadcast(app);
-                if (bc != null) found.addAll(BroadlinkDevice.discover(bc, 4000));
-                if (found.isEmpty())
-                    found.addAll(BroadlinkDevice.discover(InetAddress.getByName("255.255.255.255"), 4000));
-            } catch (Exception ignored) {}
+            List<InetAddress> targets = new ArrayList<>();
+            InetAddress bc = subnetBroadcast(app);
+            if (bc != null) targets.add(bc);
+            try { targets.add(InetAddress.getByName("255.255.255.255")); } catch (Exception ignored) {}
+            for (InetAddress t : targets) {
+                try {
+                    for (BroadlinkDevice d : BroadlinkDevice.discover(t, 5000, true)) {
+                        boolean dup = false;
+                        for (BroadlinkDevice x : found) if (x.host.equals(d.host)) dup = true;
+                        if (!dup) found.add(d);
+                    }
+                } catch (Exception ignored) {}
+            }
             main.post(() -> onWifiFound(found));
         });
+    }
+
+    /** חיבור לפי IP: פנייה ישירה למכשיר (למקרה שהוא לא עונה לחיפוש כללי). */
+    private void askAcIp() {
+        EditText et = new EditText(this);
+        et.setHint("למשל 192.168.150.120");
+        et.setInputType(InputType.TYPE_CLASS_PHONE);
+        int p = Ui.dp(this, 20);
+        LinearLayout box = new LinearLayout(this);
+        box.setPadding(p, p / 2, p, 0);
+        box.addView(et, new LinearLayout.LayoutParams(-1, -2));
+        new AlertDialog.Builder(this).setTitle("כתובת IP של המזגן")
+                .setMessage("בנתב (192.168.150.1) ← רשימת המכשירים המחוברים – חפש מכשיר שאינו טלפון/מחשב/RM4 (לפעמים בשם BroadLink, HF-LPB או ללא שם).")
+                .setView(box)
+                .setPositiveButton("חבר", (d, w) -> {
+                    String ip = et.getText().toString().trim();
+                    if (ip.isEmpty()) return;
+                    msg("פונה אל " + ip + "…");
+                    Remote.NET.execute(() -> {
+                        List<BroadlinkDevice> found = new ArrayList<>();
+                        String err = null;
+                        try { found.addAll(BroadlinkDevice.discover(InetAddress.getByName(ip), 6000)); }
+                        catch (Exception e) { err = e.getMessage(); }
+                        final String fe = err;
+                        main.post(() -> {
+                            if (found.isEmpty()) {
+                                msg("✗ המכשיר ב-" + ip + " לא ענה" + (fe != null ? " (" + fe + ")" : "")
+                                        + ". אם זה המזגן – הוא חסום לשליטה מקומית; צריך צימוד מחדש.");
+                                return;
+                            }
+                            onWifiFound(found);
+                        });
+                    });
+                })
+                .setNegativeButton("ביטול", null).show();
     }
 
     private void onWifiFound(List<BroadlinkDevice> found) {
