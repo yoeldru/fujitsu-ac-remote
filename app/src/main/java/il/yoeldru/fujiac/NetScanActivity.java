@@ -1,4 +1,4 @@
-// נכתב: 2026-11-15 01:07 (שעון ישראל)
+// נכתב: 2026-11-15 01:07 (שעון ישראל) · עודכן: 2026-11-15 01:13 - זיהוי משופר (מחשב, מגדיל טווח, מודול מזגן)
 // סורק רשת: עובר על כל הכתובות ברשת הביתית, מזהה מה מחובר לכל כתובת
 // (שם מהנתב, פורטים פתוחים, כותרת דף אינטרנט, תשובת Broadlink) ומאפשר לנסות לחבר מכשיר כמזגן Wi-Fi.
 package il.yoeldru.fujiac;
@@ -220,6 +220,11 @@ public class NetScanActivity extends Activity {
         if (h.ip.endsWith(".1") || h.title.toLowerCase().contains("d-link") || h.title.toLowerCase().contains("router"))
             return "🌐 נתב";
         String all = (h.name + " " + h.title + " " + h.server).toLowerCase();
+        if (all.startsWith("ac_") || all.contains("aircon") || all.contains("tornado") || all.contains("aux"))
+            return "❄️ כנראה מודול Wi-Fi של מזגן";
+        if (all.startsWith("re") && all.matches("re\\d+.*") || all.contains("miwifi") || all.contains("extender")
+                || all.contains("repeater") || all.contains("deco")) return "📶 מגדיל טווח / נקודת גישה";
+        if (h.ports.contains(445) || h.ports.contains(139)) return "💻 מחשב";
         if (h.ports.contains(62078)) return "📱 אייפון / אייפד";
         if (all.contains("android") || all.contains("galaxy") || all.contains("samsung")) return "📱 טלפון / טאבלט";
         if (h.ports.contains(9100) || h.ports.contains(631) || all.contains("printer") || all.contains("epson")
